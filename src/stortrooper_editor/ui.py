@@ -121,9 +121,15 @@ class MainWindow(QMainWindow):
         
         # Character Selector
         self.char_combo = QComboBox()
-        self.char_combo.currentIndexChanged.connect(self.load_character)
+        self.char_combo.currentIndexChanged.connect(self.on_character_changed)
         left_layout.addWidget(QLabel("Character Type:"))
         left_layout.addWidget(self.char_combo)
+
+        # Articles File Selector
+        self.articles_combo = QComboBox()
+        self.articles_combo.currentIndexChanged.connect(self.reload_data)
+        left_layout.addWidget(QLabel("Articles File:"))
+        left_layout.addWidget(self.articles_combo)
         
         # Category Tabs
         self.category_tabs = QTabWidget()
@@ -177,17 +183,45 @@ class MainWindow(QMainWindow):
         chars.sort()
         self.char_combo.addItems(chars)
 
-    def load_character(self):
+    def on_character_changed(self):
         char_name = self.char_combo.currentText()
         if not char_name:
             return
             
-        self.current_char_data = CharacterData(char_name, self.res_path)
+        # Update articles combo
+        self.articles_combo.blockSignals(True)
+        self.articles_combo.clear()
+        
+        files = CharacterData.get_available_article_files(self.res_path, char_name)
+        self.articles_combo.addItems(files)
+        
+        # Select "articles.txt" if present, else first one
+        index = self.articles_combo.findText("articles.txt")
+        if index >= 0:
+            self.articles_combo.setCurrentIndex(index)
+        elif self.articles_combo.count() > 0:
+            self.articles_combo.setCurrentIndex(0)
+            
+        self.articles_combo.blockSignals(False)
+        self.reload_data()
+
+    def reload_data(self):
+        char_name = self.char_combo.currentText()
+        if not char_name:
+            return
+            
+        articles_file = self.articles_combo.currentText()
+        # If no articles file found, we can't load much, but let's try with default
+        if not articles_file:
+             articles_file = "articles.txt"
+
+        self.current_char_data = CharacterData(char_name, self.res_path, articles_filename=articles_file)
         self.current_char_data.load()
         
         self.canvas.set_character(self.current_char_data)
         
         # Update Categories
+        self.category_tabs.blockSignals(True) # Avoid triggering multiple updates
         self.category_tabs.clear()
         
         # Define a consistent order if possible, or alphabetical
@@ -199,6 +233,8 @@ class MainWindow(QMainWindow):
             
         for cat in categories:
             self.category_tabs.addTab(QWidget(), cat)
+        
+        self.category_tabs.blockSignals(False)
             
         if self.category_tabs.count() > 0:
             self.on_category_changed(0)

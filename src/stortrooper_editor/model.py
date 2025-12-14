@@ -15,9 +15,18 @@ class Article:
     local_path: str = ""
 
 class CharacterData:
-    def __init__(self, name: str, res_path: str):
+    @staticmethod
+    def get_available_article_files(res_path: str, char_name: str) -> List[str]:
+        path = os.path.join(res_path, char_name)
+        if not os.path.exists(path):
+            return []
+        files = glob.glob(os.path.join(path, "articles*.txt"))
+        return sorted([os.path.basename(f) for f in files])
+
+    def __init__(self, name: str, res_path: str, articles_filename: str = "articles.txt"):
         self.name = name
         self.root_path = os.path.join(res_path, name)
+        self.articles_filename = articles_filename
         self.articles: List[Article] = []
         self.categories: Dict[str, List[Article]] = {}
         # Default layer order based on config.txt observation, can be refined
@@ -29,7 +38,7 @@ class CharacterData:
         self.layer_z_index = {name: i for i, name in enumerate(self.layer_order)}
 
     def load(self):
-        articles_path = os.path.join(self.root_path, "articles.txt")
+        articles_path = os.path.join(self.root_path, self.articles_filename)
         if not os.path.exists(articles_path):
             print(f"Warning: {articles_path} not found")
             return
