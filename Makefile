@@ -2,7 +2,7 @@
 
 venv:
 	python3 -m venv venv
-	./venv/bin/pip install -r requirements.txt
+	./venv/bin/pip install -r requirements.txt --extra-index-url https://pypi.org/simple
 
 run: venv
 	PYTHONPATH=src ./venv/bin/python3 -m stortrooper_editor.main
