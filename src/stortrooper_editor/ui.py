@@ -36,10 +36,9 @@ class CanvasWidget(QGraphicsView):
     def update_article(self, article: Article):
         # Remove existing item on this layer if any
         if article.layer_name in self.pixmap_items:
-            # Check if it's the same article, if so, maybe toggle off?
-            # For now, just replace.
             self.scene.removeItem(self.pixmap_items[article.layer_name])
             del self.pixmap_items[article.layer_name]
+            del self.active_articles[article.layer_name]
         
         # Load image
         pixmap = QPixmap(article.local_path)
@@ -57,6 +56,23 @@ class CanvasWidget(QGraphicsView):
         self.scene.addItem(item)
         self.pixmap_items[article.layer_name] = item
         self.active_articles[article.layer_name] = article
+
+    def remove_article(self, article: Article):
+        if article.layer_name in self.pixmap_items:
+            # Check if it is indeed this article
+            current_article = self.active_articles.get(article.layer_name)
+            if current_article and current_article.id == article.id:
+                self.scene.removeItem(self.pixmap_items[article.layer_name])
+                del self.pixmap_items[article.layer_name]
+                del self.active_articles[article.layer_name]
+
+    def is_article_active(self, article: Article) -> bool:
+        current_article = self.active_articles.get(article.layer_name)
+        return current_article is not None and current_article.id == article.id
+
+    def set_zoom(self, scale):
+        self.resetTransform()
+        self.scale(scale, scale)
 
     def save_image(self, file_path):
         # Create an image with the scene's dimensions
@@ -91,6 +107,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 700)
         self.res_path = res_path
         self.current_char_data = None
+        self.current_zoom = 3.0
         
         # Central Widget
         central_widget = QWidget()
@@ -116,6 +133,8 @@ class MainWindow(QMainWindow):
         # Asset List
         self.asset_list = AssetSelector()
         self.asset_list.itemClicked.connect(self.on_asset_clicked)
+        self.asset_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.asset_list.customContextMenuRequested.connect(self.on_asset_list_context_menu)
         left_layout.addWidget(self.asset_list)
         
         # Save Button
@@ -128,8 +147,21 @@ class MainWindow(QMainWindow):
         right_layout = QVBoxLayout(right_panel)
         main_layout.addWidget(right_panel, 2)
         
+        # Zoom Controls
+        zoom_layout = QHBoxLayout()
+        zoom_in_btn = QPushButton("Zoom In (+)")
+        zoom_in_btn.clicked.connect(self.zoom_in)
+        zoom_out_btn = QPushButton("Zoom Out (-)")
+        zoom_out_btn.clicked.connect(self.zoom_out)
+        zoom_layout.addWidget(zoom_out_btn)
+        zoom_layout.addWidget(zoom_in_btn)
+        right_layout.addLayout(zoom_layout)
+        
         self.canvas = CanvasWidget()
         right_layout.addWidget(self.canvas)
+        
+        # Set default zoom
+        self.canvas.set_zoom(self.current_zoom)
         
         # Populate Characters
         self.populate_characters()
@@ -176,6 +208,8 @@ class MainWindow(QMainWindow):
              # Just pick the first body
              first_body = self.current_char_data.categories["body"][0]
              self.canvas.update_article(first_body)
+             # Update visual feedback after loading default body
+             self.update_asset_list_visuals()
 
     def on_category_changed(self, index):
         if index < 0:
@@ -196,12 +230,42 @@ class MainWindow(QMainWindow):
                 item.setIcon(QIcon(pixmap))
             item.setData(Qt.UserRole, article)
             self.asset_list.addItem(item)
+        
+        self.update_asset_list_visuals()
+
+    def update_asset_list_visuals(self):
+        # Iterate over all items in the list widget and check if they are active
+        for i in range(self.asset_list.count()):
+            item = self.asset_list.item(i)
+            article = item.data(Qt.UserRole)
+            if self.canvas.is_article_active(article):
+                item.setBackground(Qt.cyan)  # Highlight color
+            else:
+                item.setBackground(Qt.NoBrush) # Reset color
 
     def on_asset_clicked(self, item):
         article = item.data(Qt.UserRole)
         self.canvas.update_article(article)
+        self.update_asset_list_visuals()
+
+    def on_asset_list_context_menu(self, position):
+        item = self.asset_list.itemAt(position)
+        if item:
+            article = item.data(Qt.UserRole)
+            if self.canvas.is_article_active(article):
+                self.canvas.remove_article(article)
+                self.update_asset_list_visuals()
 
     def save_character(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Character", "", "PNG Images (*.png)")
         if file_path:
             self.canvas.save_image(file_path)
+
+    def zoom_in(self):
+        self.current_zoom += 0.5
+        self.canvas.set_zoom(self.current_zoom)
+
+    def zoom_out(self):
+        if self.current_zoom > 0.5:
+            self.current_zoom -= 0.5
+            self.canvas.set_zoom(self.current_zoom)

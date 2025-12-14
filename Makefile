@@ -1,0 +1,12 @@
+.PHONY: venv run clean
+
+venv:
+	python3 -m venv venv
+	./venv/bin/pip install -r requirements.txt
+
+run: venv
+	PYTHONPATH=src ./venv/bin/python3 -m stortrooper_editor.main
+
+clean:
+	rm -rf venv
+	find . -type d -name "__pycache__" -exec rm -rf {} +
