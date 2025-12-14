@@ -1,3 +1,5 @@
+# Copyright (c) 2025 Ricardo Quesada
+
 import os
 import glob
 from dataclasses import dataclass
