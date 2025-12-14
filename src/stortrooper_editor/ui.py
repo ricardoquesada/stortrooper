@@ -7,6 +7,7 @@ from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
+    QDockWidget,
     QFileDialog,
     QGraphicsPixmapItem,
     QGraphicsScene,
@@ -16,6 +17,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMdiArea,
+    QMdiSubWindow,
     QMessageBox,
     QPushButton,
     QTabWidget,
@@ -40,6 +43,7 @@ class CanvasWidget(QGraphicsView):
         self.scene.setSceneRect(0, 0, 300, 300)
         self.active_articles = {}  # layer_name -> Article
         self.pixmap_items = {}  # layer_name -> QGraphicsPixmapItem
+        self.current_zoom = 4.0
 
     def set_character(self, character_data: CharacterData):
         self.character_data = character_data
@@ -88,6 +92,7 @@ class CanvasWidget(QGraphicsView):
         return current_article is not None and current_article.id == article.id
 
     def set_zoom(self, scale):
+        self.current_zoom = scale
         self.resetTransform()
         self.scale(scale, scale)
 
@@ -123,40 +128,55 @@ class MainWindow(QMainWindow):
     def __init__(self, res_path):
         super().__init__()
         self.setWindowTitle("StorTrooper Character Editor")
-        self.resize(1000, 700)
+        self.resize(1200, 800)
         self.res_path = res_path
-        self.current_char_data = None
-        self.current_zoom = 4.0
 
-        # Central Widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QHBoxLayout(central_widget)
+        # Central MDI Area
+        self.mdi_area = QMdiArea()
+        self.mdi_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.mdi_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.mdi_area.setViewMode(QMdiArea.TabbedView)
+        self.mdi_area.setTabsClosable(True)
+        self.mdi_area.setTabsMovable(True)
+        self.setCentralWidget(self.mdi_area)
+
+        self.mdi_area.subWindowActivated.connect(self.update_ui_from_active_window)
+
+        # Dock Widget for Tools
+        self.create_tools_dock()
 
         # Menu Bar
         self.create_menu_bar()
 
-        # Left Panel: Controls
-        left_panel = QWidget()
-        left_layout = QVBoxLayout(left_panel)
-        main_layout.addWidget(left_panel, 1)
+        # Populate Characters
+        self.populate_characters()
+
+        # Create one initial document
+        self.create_new_document()
+
+    def create_tools_dock(self):
+        dock = QDockWidget("Tools", self)
+        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
 
         # Character Selector
         self.char_combo = QComboBox()
         self.char_combo.currentIndexChanged.connect(self.on_character_changed)
-        left_layout.addWidget(QLabel("Character Type:"))
-        left_layout.addWidget(self.char_combo)
+        layout.addWidget(QLabel("Character Type:"))
+        layout.addWidget(self.char_combo)
 
         # Articles File Selector
         self.articles_combo = QComboBox()
         self.articles_combo.currentIndexChanged.connect(self.reload_data)
-        left_layout.addWidget(QLabel("Articles File:"))
-        left_layout.addWidget(self.articles_combo)
+        layout.addWidget(QLabel("Articles File:"))
+        layout.addWidget(self.articles_combo)
 
         # Category Tabs
         self.category_tabs = QTabWidget()
         self.category_tabs.currentChanged.connect(self.on_category_changed)
-        left_layout.addWidget(self.category_tabs)
+        layout.addWidget(self.category_tabs)
 
         # Asset List
         self.asset_list = AssetSelector()
@@ -165,17 +185,12 @@ class MainWindow(QMainWindow):
         self.asset_list.customContextMenuRequested.connect(
             self.on_asset_list_context_menu
         )
-        left_layout.addWidget(self.asset_list)
+        layout.addWidget(self.asset_list)
 
         # Save Button
         save_btn = QPushButton("Save Character to PNG")
         save_btn.clicked.connect(self.save_character)
-        left_layout.addWidget(save_btn)
-
-        # Right Panel: Canvas
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        main_layout.addWidget(right_panel, 2)
+        layout.addWidget(save_btn)
 
         # Zoom Controls
         zoom_layout = QHBoxLayout()
@@ -185,19 +200,50 @@ class MainWindow(QMainWindow):
         zoom_out_btn.clicked.connect(self.zoom_out)
         zoom_layout.addWidget(zoom_out_btn)
         zoom_layout.addWidget(zoom_in_btn)
-        right_layout.addLayout(zoom_layout)
+        layout.addLayout(zoom_layout)
 
-        self.canvas = CanvasWidget()
-        right_layout.addWidget(self.canvas)
+        dock.setWidget(panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
-        # Set default zoom
-        self.canvas.set_zoom(self.current_zoom)
+    def create_menu_bar(self):
+        menubar = self.menuBar()
 
-        # Populate Characters
-        self.populate_characters()
+        # File Menu
+        file_menu = menubar.addMenu("File")
+
+        new_action = file_menu.addAction("New Project")
+        new_action.setShortcut("Ctrl+N")
+        new_action.triggered.connect(self.create_new_document)
+
+        open_action = file_menu.addAction("Open Project...")
+        open_action.setShortcut("Ctrl+O")
+        open_action.triggered.connect(self.open_project)
+
+        save_action = file_menu.addAction("Save Project...")
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.save_project)
+
+        file_menu.addSeparator()
+
+        export_action = file_menu.addAction("Export to PNG...")
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self.save_character)
+
+        # Window Menu
+        window_menu = menubar.addMenu("Window")
+
+        close_action = window_menu.addAction("Close Window")
+        close_action.triggered.connect(self.close_active_window)
+
+        window_menu.addSeparator()
+
+        tile_action = window_menu.addAction("Tile")
+        tile_action.triggered.connect(self.mdi_area.tileSubWindows)
+
+        cascade_action = window_menu.addAction("Cascade")
+        cascade_action.triggered.connect(self.mdi_area.cascadeSubWindows)
 
     def populate_characters(self):
-        # Scan res_path for directories
         if not os.path.exists(self.res_path):
             QMessageBox.critical(
                 self, "Error", f"Resource path not found: {self.res_path}"
@@ -214,19 +260,117 @@ class MainWindow(QMainWindow):
         chars.sort()
         self.char_combo.addItems(chars)
 
+    def create_new_document(self):
+        canvas = CanvasWidget()
+        canvas.set_zoom(4.0)
+
+        sub = QMdiSubWindow()
+        sub.setWidget(canvas)
+        sub.setAttribute(Qt.WA_DeleteOnClose)
+        sub.setWindowTitle("Untitled")
+        self.mdi_area.addSubWindow(sub)
+        sub.show()
+
+        # Initialize with current selection if possible
+        self.reload_data()
+
+    def close_active_window(self):
+        if self.mdi_area.currentSubWindow():
+            self.mdi_area.currentSubWindow().close()
+
+    def get_current_canvas(self):
+        sub = self.mdi_area.currentSubWindow()
+        if sub:
+            return sub.widget()
+        return None
+
+    def update_ui_from_active_window(self, subwindow):
+        if not subwindow:
+            # Could clear UI or disable properties
+            self.asset_list.clear()
+            self.category_tabs.clear()
+            return
+
+        canvas = subwindow.widget()
+        if not isinstance(canvas, CanvasWidget):
+            return
+
+        # Restore UI state from this canvas
+        self.char_combo.blockSignals(True)
+        self.articles_combo.blockSignals(True)
+
+        if hasattr(canvas, "character_data") and canvas.character_data:
+            # Select Character
+            idx = self.char_combo.findText(canvas.character_data.name)
+            if idx >= 0:
+                self.char_combo.setCurrentIndex(idx)
+
+            # Update Articles Combo
+            files = CharacterData.get_available_article_files(
+                self.res_path, canvas.character_data.name
+            )
+            self.articles_combo.clear()
+            self.articles_combo.addItems(files)
+
+            idx = self.articles_combo.findText(canvas.character_data.articles_filename)
+            if idx >= 0:
+                self.articles_combo.setCurrentIndex(idx)
+
+        self.char_combo.blockSignals(False)
+        self.articles_combo.blockSignals(False)
+
+        self.refresh_categories_and_assets(canvas)
+
+    def refresh_categories_and_assets(self, canvas):
+        if not hasattr(canvas, "character_data") or not canvas.character_data:
+            self.category_tabs.clear()
+            self.asset_list.clear()
+            return
+
+        # Store current tab text to restore it?
+        current_tab_text = self.category_tabs.tabText(self.category_tabs.currentIndex())
+
+        self.category_tabs.blockSignals(True)
+        self.category_tabs.clear()
+
+        categories = sorted(list(canvas.character_data.categories.keys()))
+        if "body" in categories:
+            categories.insert(0, categories.pop(categories.index("body")))
+
+        for cat in categories:
+            self.category_tabs.addTab(QWidget(), cat)
+
+        self.category_tabs.blockSignals(False)
+
+        # Try to restore tab or default
+        idx = -1
+        if current_tab_text:
+            for i in range(self.category_tabs.count()):
+                if self.category_tabs.tabText(i) == current_tab_text:
+                    idx = i
+                    break
+
+        if idx == -1 and self.category_tabs.count() > 0:
+            idx = 0
+
+        if idx != -1:
+            self.category_tabs.setCurrentIndex(idx)
+            self.on_category_changed(idx)
+
     def on_character_changed(self):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
+
         char_name = self.char_combo.currentText()
         if not char_name:
             return
 
-        # Update articles combo
         self.articles_combo.blockSignals(True)
         self.articles_combo.clear()
-
         files = CharacterData.get_available_article_files(self.res_path, char_name)
         self.articles_combo.addItems(files)
 
-        # Select "articles.txt" if present, else first one
         index = self.articles_combo.findText("articles.txt")
         if index >= 0:
             self.articles_combo.setCurrentIndex(index)
@@ -237,63 +381,54 @@ class MainWindow(QMainWindow):
         self.reload_data()
 
     def reload_data(self):
-        char_name = self.char_combo.currentText()
-        if not char_name:
+        canvas = self.get_current_canvas()
+        if not canvas:
             return
 
+        char_name = self.char_combo.currentText()
         articles_file = self.articles_combo.currentText()
-        # If no articles file found, we can't load much, but let's try with default
         if not articles_file:
             articles_file = "articles.txt"
 
-        self.current_char_data = CharacterData(
+        if not char_name:
+            return
+
+        # Avoid reloading if it's the same data?
+        # Sometimes we want to force reload.
+
+        char_data = CharacterData(
             char_name, self.res_path, articles_filename=articles_file
         )
-        self.current_char_data.load()
+        char_data.load()
 
-        self.canvas.set_character(self.current_char_data)
+        canvas.set_character(char_data)
 
-        # Update Categories
-        self.category_tabs.blockSignals(True)  # Avoid triggering multiple updates
-        self.category_tabs.clear()
+        # Default body logic
+        if "body" in char_data.categories:
+            first_body = char_data.categories["body"][0]
+            canvas.update_article(first_body)
 
-        # Define a consistent order if possible, or alphabetical
-        categories = sorted(list(self.current_char_data.categories.keys()))
-
-        # Prioritize body/skin
-        if "body" in categories:
-            categories.insert(0, categories.pop(categories.index("body")))
-
-        for cat in categories:
-            self.category_tabs.addTab(QWidget(), cat)
-
-        self.category_tabs.blockSignals(False)
-
-        if self.category_tabs.count() > 0:
-            self.on_category_changed(0)
-
-        # Try to set default body if available
-        if "body" in self.current_char_data.categories:
-            # Just pick the first body
-            first_body = self.current_char_data.categories["body"][0]
-            self.canvas.update_article(first_body)
-            # Update visual feedback after loading default body
-            self.update_asset_list_visuals()
+        self.refresh_categories_and_assets(canvas)
 
     def on_category_changed(self, index):
         if index < 0:
             return
-        cat_name = self.category_tabs.tabText(index)
 
-        self.asset_list.clear()
-
-        if not self.current_char_data:
+        canvas = self.get_current_canvas()
+        if (
+            not canvas
+            or not hasattr(canvas, "character_data")
+            or not canvas.character_data
+        ):
+            self.asset_list.clear()
             return
 
-        articles = self.current_char_data.categories.get(cat_name, [])
+        cat_name = self.category_tabs.tabText(index)
+        self.asset_list.clear()
+
+        articles = canvas.character_data.categories.get(cat_name, [])
         for article in articles:
-            item = QListWidgetItem(article.image_name)  # Use simpler text
-            # Try to load icon
+            item = QListWidgetItem(article.image_name)
             pixmap = QPixmap(article.local_path)
             if not pixmap.isNull():
                 item.setIcon(QIcon(pixmap))
@@ -303,66 +438,61 @@ class MainWindow(QMainWindow):
         self.update_asset_list_visuals()
 
     def update_asset_list_visuals(self):
-        # Iterate over all items in the list widget and check if they are active
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
+
         for i in range(self.asset_list.count()):
             item = self.asset_list.item(i)
             article = item.data(Qt.UserRole)
-            if self.canvas.is_article_active(article):
-                item.setBackground(Qt.cyan)  # Highlight color
+            if canvas.is_article_active(article):
+                item.setBackground(Qt.cyan)
             else:
-                item.setBackground(Qt.NoBrush)  # Reset color
+                item.setBackground(Qt.NoBrush)
 
     def on_asset_clicked(self, item):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
         article = item.data(Qt.UserRole)
-        self.canvas.update_article(article)
+        canvas.update_article(article)
         self.update_asset_list_visuals()
 
     def on_asset_list_context_menu(self, position):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
         item = self.asset_list.itemAt(position)
         if item:
             article = item.data(Qt.UserRole)
-            if self.canvas.is_article_active(article):
-                self.canvas.remove_article(article)
+            if canvas.is_article_active(article):
+                canvas.remove_article(article)
                 self.update_asset_list_visuals()
 
+    def zoom_in(self):
+        canvas = self.get_current_canvas()
+        if canvas:
+            canvas.set_zoom(canvas.current_zoom + 0.5)
+
+    def zoom_out(self):
+        canvas = self.get_current_canvas()
+        if canvas:
+            canvas.set_zoom(canvas.current_zoom - 0.5)
+
     def save_character(self):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save Character", "", "PNG Images (*.png)"
         )
         if file_path:
-            self.canvas.save_image(file_path)
-
-    def zoom_in(self):
-        self.current_zoom += 0.5
-        self.canvas.set_zoom(self.current_zoom)
-
-    def zoom_out(self):
-        self.current_zoom -= 0.5
-        self.canvas.set_zoom(self.current_zoom)
-
-    def create_menu_bar(self):
-        menubar = self.menuBar()
-
-        # File Menu
-        file_menu = menubar.addMenu("File")
-
-        open_action = file_menu.addAction("Open Project...")
-        open_action.setShortcut("Ctrl+O")
-        open_action.triggered.connect(self.open_project)
-
-        save_action = file_menu.addAction("Save Project...")
-        save_action.setShortcut("Ctrl+S")
-        save_action.triggered.connect(self.save_project)
-
-        file_menu.addSeparator()
-
-        export_action = file_menu.addAction("Export to PNG...")
-        export_action.setShortcut("Ctrl+E")
-        export_action.triggered.connect(self.save_character)
+            canvas.save_image(file_path)
 
     def save_project(self):
-        if not self.current_char_data:
-            QMessageBox.warning(self, "Warning", "No character loaded to save.")
+        canvas = self.get_current_canvas()
+        if not canvas or not hasattr(canvas, "character_data"):
+            QMessageBox.warning(self, "Warning", "No active project to save.")
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
@@ -371,11 +501,11 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        active_ids = [article.id for article in self.canvas.active_articles.values()]
+        active_ids = [article.id for article in canvas.active_articles.values()]
 
         data = {
-            "character_name": self.current_char_data.name,
-            "articles_file": self.current_char_data.articles_filename,
+            "character_name": canvas.character_data.name,
+            "articles_file": canvas.character_data.articles_filename,
             "active_articles": active_ids,
         }
 
@@ -385,6 +515,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "Success", f"Project saved to {os.path.basename(file_path)}"
             )
+            # Update window title
+            self.mdi_area.currentSubWindow().setWindowTitle(os.path.basename(file_path))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{e}")
 
@@ -406,60 +538,48 @@ class MainWindow(QMainWindow):
             if not char_name or not articles_file:
                 raise ValueError("Invalid project file format.")
 
-            # 1. Select Character
-            index = self.char_combo.findText(char_name)
-            if index == -1:
+            # New document
+            self.create_new_document()
+            canvas = self.get_current_canvas()
+            if not canvas:
+                return
+
+            # Manually set character to match file without relying solely on UI
+            # But we must update UI too?
+            # Let's verify character exists
+            idx = self.char_combo.findText(char_name)
+            if idx == -1:
                 QMessageBox.critical(
                     self, "Error", f"Character '{char_name}' not found."
                 )
-                return
-            self.char_combo.setCurrentIndex(index)
-
-            # 2. Select Articles File
-            # Note: Changing char_combo triggers on_character_changed which populates articles_combo
-            # and selects a default. We need to override that.
-            # However, on_character_changed happens immediately if connected.
-            # Let's verify if the article file exists in the combo.
-            index = self.articles_combo.findText(articles_file)
-            if index == -1:
-                QMessageBox.warning(
-                    self,
-                    "Warning",
-                    f"Articles file '{articles_file}' not found. Using default.",
-                )
-            else:
-                self.articles_combo.setCurrentIndex(index)
-
-            # 3. Reload Data (this clears everything)
-            # The setCurrentIndex calls above might have already triggered cleanups/reloads.
-            # To be safe and explicit, let's force a reload if needed, but mainly we want to
-            # apply the active articles *after* the character data is loaded.
-
-            # Since signals are synchronous, self.current_char_data should be updated now.
-            if not self.current_char_data:
+                self.mdi_area.currentSubWindow().close()
                 return
 
-            # 4. Restore Active Articles
-            self.canvas.clear()
-            # Restore body parts if they were not in the list?
-            # Actually, `reload_data` loads a default body.
-            # If the saved project has specific items, we should start fresh or respect them.
-            # The `reload_data` puts a default body.
-            # Let's clear the canvas again to strictly follow the saved project?
-            # OR, does the saved project include the body?
-            # Yes, "body" is just another layer/category.
-            # So if we clear, we must ensure the saved project includes the body.
-            # Assuming the user saved a valid state, it should have a body.
-            self.canvas.clear()
+            # Setting index triggers on_character_changed -> reload_data -> sets default body
+            self.char_combo.setCurrentIndex(idx)
+
+            # Now update articles file if needed
+            idx = self.articles_combo.findText(articles_file)
+            if idx != -1:
+                self.articles_combo.setCurrentIndex(idx)
+
+            # At this point, reload_data has run and loaded the character + default body
+
+            # Now Apply Saved Articles (Clear defaults first?)
+            # Yes, if we want exact restoration.
+            canvas.clear()
+
+            # We need to make sure canvas.character_data is set (it is by reload_data)
 
             for art_id in active_ids:
-                article = self.current_char_data.get_article_by_id(art_id)
+                article = canvas.character_data.get_article_by_id(art_id)
                 if article:
-                    self.canvas.update_article(article)
+                    canvas.update_article(article)
                 else:
-                    print(f"Warning: Article ID {art_id} not found.")
+                    print(f"Warning: Article {art_id} not found")
 
             self.update_asset_list_visuals()
+            self.mdi_area.currentSubWindow().setWindowTitle(os.path.basename(file_path))
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to open project:\n{e}")
