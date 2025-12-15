@@ -254,9 +254,14 @@ class MainWindow(QMainWindow):
         self.recent_menu = file_menu.addMenu("Open Recent")
         self.update_recent_menu()
 
-        save_action = file_menu.addAction("Save Project...")
+        # Save Action
+        save_action = file_menu.addAction("Save")
         save_action.setShortcut("Ctrl+S")
         save_action.triggered.connect(self.save_project)
+
+        save_as_action = file_menu.addAction("Save As...")
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.save_project_as)
 
         file_menu.addSeparator()
 
@@ -568,10 +573,28 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No active project to save.")
             return
 
+        if canvas.project_file_path:
+            self._save_to_file(canvas.project_file_path)
+        else:
+            self.save_project_as()
+
+    def save_project_as(self):
+        canvas = self.get_current_canvas()
+        if not canvas or not hasattr(canvas, "character_data"):
+            QMessageBox.warning(self, "Warning", "No active project to save.")
+            return
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save Project", "", "StorTrooper Project (*.stp *.json)"
+            self, "Save Project As", "", "StorTrooper Project (*.stp *.json)"
         )
         if not file_path:
+            return
+
+        self._save_to_file(file_path)
+
+    def _save_to_file(self, file_path):
+        canvas = self.get_current_canvas()
+        if not canvas:
             return
 
         active_ids = [article.id for article in canvas.active_articles.values()]
