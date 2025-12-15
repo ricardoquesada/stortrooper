@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2025 Ricardo Quesada
 
+import logging
 import os
 import sys
 
@@ -10,6 +11,7 @@ from .ui import MainWindow
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     app = QApplication(sys.argv)
 
     # Path to resources
@@ -19,7 +21,7 @@ def main():
     res_path = os.path.join(base_dir, "res")
 
     if not os.path.exists(res_path):
-        print(f"Error: Could not find resource directory at {res_path}")
+        logging.error(f"Could not find resource directory at {res_path}")
         return 1
 
     window = MainWindow(res_path)

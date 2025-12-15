@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Ricardo Quesada
 
 import json
+import logging
 import os
 
 from PySide6.QtCore import QRectF, QSettings, QSize, Qt
@@ -65,7 +66,7 @@ class CanvasWidget(QGraphicsView):
         # Load image
         pixmap = QPixmap(article.local_path)
         if pixmap.isNull():
-            print(f"Failed to load image: {article.local_path}")
+            logging.error(f"Failed to load image: {article.local_path}")
             return
 
         item = QGraphicsPixmapItem(pixmap)
@@ -650,7 +651,7 @@ class MainWindow(QMainWindow):
                 if article:
                     canvas.update_article(article)
                 else:
-                    print(f"Warning: Article {art_id} not found")
+                    logging.warning(f"Article {art_id} not found")
 
             self.update_asset_list_visuals()
 

@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Ricardo Quesada
 
 import glob
+import logging
 import os
 from dataclasses import dataclass
 from typing import Dict, List
@@ -55,7 +56,7 @@ class CharacterData:
     def load(self):
         articles_path = os.path.join(self.root_path, self.articles_filename)
         if not os.path.exists(articles_path):
-            print(f"Warning: {articles_path} not found")
+            logging.warning(f"{articles_path} not found")
             return
 
         with open(articles_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -135,7 +136,7 @@ class CharacterData:
                         self.categories[category] = []
                     self.categories[category].append(article)
 
-        print(f"Loaded {len(self.articles)} articles for {self.name}")
+        logging.info(f"Loaded {len(self.articles)} articles for {self.name}")
 
     def get_article_z_index(self, article: Article) -> int:
         return self.layer_z_index.get(article.layer_name, 0)
