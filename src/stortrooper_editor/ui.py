@@ -460,6 +460,7 @@ class MainWindow(QMainWindow):
         char_name = self.char_combo.currentText()
         articles_file = self.articles_combo.currentText()
         if not articles_file:
+            logging.warning("No articles file selected, using default articles.txt")
             articles_file = "articles.txt"
 
         if not char_name:
