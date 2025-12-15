@@ -35,12 +35,8 @@ HCDataSetFile_fields
 HCDataSetFile_data
 "10" "boy_body_02.png" "body" "body" "26" "28" "-1"
 "11" "boy_body_03.png" "body" "body" "26" "28" "-1"
-"10" "boy_body_02_brazos_arriba.png" "body" "body" "26" "28" "0"
-"11" "boy_body_03_brazos_arriba.png" "body" "body" "26" "28" "0"
 "50185" "boy_trooper_01.png" "extras" "bottoms" "24" "64" "-1"
-"50185" "boy_trooper_01_brazos_arriba.png" "extras" "bottoms" "24" "64" "0"
 "50182" "boy_body_04.png" "body" "body" "26" "28" "-1"
-"501821" "boy_body_04_brazos_arriba.png" "body" "body" "26" "28" "0"
 "50184" "boy_hat_05.png" "hats" "hats" "26" "27" "-1"
 
 

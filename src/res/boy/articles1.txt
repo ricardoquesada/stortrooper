@@ -34,7 +34,6 @@ HCDataSetFile_fields
 
 HCDataSetFile_data
 "11" "boy_body_03.png" "body" "body" "26" "28" "-1"
-"11" "boy_body_03_brazos_arriba.png" "body" "body" "26" "28" "0"
 "15" "boy_jeans_01.png" "bottoms" "bottoms" "39" "94" "-1"
 "31" "boy_undies_01.png" "pants" "underware" "40" "94" "-1"
 "32" "boy_undies_02.png" "pants" "underware" "40" "94" "-1"
@@ -48,7 +47,6 @@ HCDataSetFile_data
 "50234" "glasses_07.png" "extras" "infront" "36" "47" "-1"
 "58" "boy_shoes_01.png" "shoes" "shoes" "35" "127" "-1"
 "71" "boy_shirt_03.png" "tops" "tops" "31" "67" "-1"
-"71" "boy_shirt_03_brazos_arriba.png" "tops" "tops" "31" "67" "0"
 "79" "boy_facialhair_03.png" "hair" "hair" "35" "56" "-1"
 "84" "boy_facialhair_02.png" "hair" "hair" "43" "58" "-1"
 "85" "boy_facialhair_01.png" "hair" "hair" "44" "58" "-1"

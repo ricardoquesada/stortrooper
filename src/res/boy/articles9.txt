@@ -35,8 +35,6 @@ HCDataSetFile_fields
 HCDataSetFile_data
 "10" "boy_body_02.png" "body" "body" "26" "28" "-1"
 "11" "boy_body_03.png" "body" "body" "26" "28" "-1"
-"10" "boy_body_02_brazos_arriba.png" "body" "body" "26" "28" "0"
-"11" "boy_body_03_brazos_arriba.png" "body" "body" "26" "28" "0"
 "50246" "boy_hair_44.png" "hair" "hair" "24" "10" "-1"
 "50245" "boy_hair_43.png" "hair" "hair" "30" "12" "-1"
 "50244" "boy_hair_42.png" "hair" "hair" "24" "23" "-1"
@@ -99,4 +97,3 @@ HCDataSetFile_data
 "50021" "boy_hair_15.png" "hair" "hair" "33" "21" "-1"
 "50174" "boy_hair_17.png" "hair" "hair" "34" "26" "-1"
 "50182" "boy_body_04.png" "body" "body" "26" "28" "-1"
-"501821" "boy_body_04_brazos_arriba.png" "body" "body" "26" "28" "0"

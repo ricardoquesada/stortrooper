@@ -91,18 +91,6 @@ class CharacterData:
                         y = 0
                     wearing = parts[6]
 
-                    # Filter out "brazos_arriba" or similar variants if they are not the main pose
-                    # Actually, usually "wearing" being "-1" means it's an inventory item?
-                    # And "0" might be a default or alternative pose.
-                    # Looking at the file:
-                    # "10" "boy_body_02.gif" ... "-1"
-                    # "10" "boy_body_02_brazos_arriba.gif" ... "0"
-                    # So we probably only want the ones with "-1" or items that look "normal".
-                    # Let's filter out files ending in _brazos_arriba.gif for now to keep it simple
-
-                    if "_brazos_arriba" in img_name:
-                        continue
-
                     # Construct local path
                     # Images seem to be in 'data' subdir based on listing
                     # But wait, looking at file list:
