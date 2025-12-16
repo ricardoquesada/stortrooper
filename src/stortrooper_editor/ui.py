@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMdiSubWindow,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -217,15 +218,7 @@ class MainWindow(QMainWindow):
         )
         layout.addWidget(self.asset_list)
 
-        # Save Button
-        save_btn = QPushButton("Save Character to PNG")
-        save_btn.clicked.connect(self.save_character)
-        layout.addWidget(save_btn)
 
-        # Random Button
-        random_btn = QPushButton("Random")
-        random_btn.clicked.connect(self.randomize_character)
-        layout.addWidget(random_btn)
 
 
         # Zoom Controls
@@ -243,6 +236,8 @@ class MainWindow(QMainWindow):
 
     def create_menu_bar(self):
         menubar = self.menuBar()
+        toolbar = self.addToolBar("Main Toolbar")
+        style = self.style()
 
         # File Menu
         file_menu = menubar.addMenu("File")
@@ -253,7 +248,9 @@ class MainWindow(QMainWindow):
 
         open_action = file_menu.addAction("Open Project...")
         open_action.setShortcut("Ctrl+O")
+        open_action.setIcon(style.standardIcon(QStyle.SP_DialogOpenButton))
         open_action.triggered.connect(self.open_project)
+        toolbar.addAction(open_action)
 
         # Recent Files
         self.recent_menu = file_menu.addMenu("Open Recent")
@@ -262,17 +259,30 @@ class MainWindow(QMainWindow):
         # Save Action
         save_action = file_menu.addAction("Save")
         save_action.setShortcut("Ctrl+S")
+        save_action.setIcon(style.standardIcon(QStyle.SP_DialogSaveButton))
         save_action.triggered.connect(self.save_project)
+        toolbar.addAction(save_action)
 
         save_as_action = file_menu.addAction("Save As...")
         save_as_action.setShortcut("Ctrl+Shift+S")
+        # Reuse save icon for now
+        save_as_action.setIcon(style.standardIcon(QStyle.SP_DialogSaveButton))
         save_as_action.triggered.connect(self.save_project_as)
+        toolbar.addAction(save_as_action)
 
         file_menu.addSeparator()
 
         export_action = file_menu.addAction("Export to PNG...")
         export_action.setShortcut("Ctrl+E")
+        export_action.setIcon(style.standardIcon(QStyle.SP_DialogApplyButton))
         export_action.triggered.connect(self.save_character)
+        toolbar.addAction(export_action)
+        
+        # Random Action
+        random_action = QAction("Random", self)
+        random_action.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
+        random_action.triggered.connect(self.randomize_character)
+        toolbar.addAction(random_action)
 
         # Window Menu
         window_menu = menubar.addMenu("Window")
