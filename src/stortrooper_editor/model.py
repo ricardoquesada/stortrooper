@@ -3,10 +3,13 @@
 import glob
 import logging
 import os
+import random
 from dataclasses import dataclass
 from typing import Dict, List
 
 
+
+    
 @dataclass
 class Article:
     id: str
@@ -131,3 +134,10 @@ class CharacterData:
 
     def get_article_by_id(self, article_id: str) -> Article:
         return self.articles_by_id.get(article_id)
+
+    def get_random_outfit(self) -> List[Article]:
+        outfit = []
+        for category, articles in self.categories.items():
+            if articles:
+                outfit.append(random.choice(articles))
+        return outfit

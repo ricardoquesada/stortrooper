@@ -41,3 +41,26 @@ def test_layer_z_index(res_path):
     
     # Shoes should be above body
     assert z > z_body
+
+def test_random_outfit(res_path):
+    """Test generating a random outfit."""
+    # We need a character with some categories
+    # The default mock data setup in conftest or basic CharacterData might be limited
+    # But let's assume 'hero' exists or we can mock it more effectively if needed.
+    # Actually, let's look at conftest for res_path fixtures.
+    
+    char_data = CharacterData("hero", res_path)
+    char_data.load()
+    
+    # Hero has body and tops in the previous test
+    outfit = char_data.get_random_outfit()
+    
+    assert len(outfit) > 0
+    # Check that we have one article per nonempty category
+    categories = [art.category for art in outfit]
+    assert "body" in categories
+    assert "tops" in categories
+    
+    # Check that articles are Article objects
+    for art in outfit:
+        assert isinstance(art, Article)

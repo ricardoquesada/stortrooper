@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import random
 
 from PySide6.QtCore import QRectF, QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QImage, QPainter, QPixmap
@@ -220,6 +221,12 @@ class MainWindow(QMainWindow):
         save_btn = QPushButton("Save Character to PNG")
         save_btn.clicked.connect(self.save_character)
         layout.addWidget(save_btn)
+
+        # Random Button
+        random_btn = QPushButton("Random")
+        random_btn.clicked.connect(self.randomize_character)
+        layout.addWidget(random_btn)
+
 
         # Zoom Controls
         zoom_layout = QHBoxLayout()
@@ -682,3 +689,43 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{e}")
             return False
+
+    def randomize_character(self):
+        # 1. Randomize Character
+        if self.char_combo.count() > 0:
+            import random  # Ensure it's available or use the module level one
+            # Logic to pick a random character
+            # We want to allow picking the SAME character too, so we just pick any index.
+            # But if we pick the same index, no signal is emitted, so we might need to manually trigger updates 
+            # OR we just trust that if it's the same, we don't need to change it.
+            # However, for "articles file", if we stick to the same character, we might want to change the article file.
+            
+            # Let's pick a random char index
+            char_idx = random.randint(0, self.char_combo.count() - 1)
+            self.char_combo.setCurrentIndex(char_idx)
+            
+            # If the index didn't change, on_character_changed wasn't called.
+            # But we might still want to randomize the article file.
+            
+        # 2. Randomize Article File
+        # The char combo change (if any) updated the articles combo.
+        if self.articles_combo.count() > 0:
+            art_idx = random.randint(0, self.articles_combo.count() - 1)
+            self.articles_combo.setCurrentIndex(art_idx)
+
+        # 3. Randomize Outfit
+        canvas = self.get_current_canvas()
+        if not canvas or not hasattr(canvas, "character_data"):
+            return
+
+        new_outfit = canvas.character_data.get_random_outfit()
+        if not new_outfit:
+            QMessageBox.information(self, "Info", "No articles found to randomize.")
+            return
+
+        canvas.clear()
+        
+        for article in new_outfit:
+            canvas.update_article(article)
+            
+        self.update_asset_list_visuals()
