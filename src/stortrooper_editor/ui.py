@@ -156,6 +156,9 @@ class MainWindow(QMainWindow):
         # Populate Characters
         self.populate_characters()
 
+        # Restore UI Session
+        self.restore_ui_session()
+
         # Restore Session or New Document
         self.restore_last_session()
 
@@ -168,6 +171,8 @@ class MainWindow(QMainWindow):
                 open_files.append(canvas.project_file_path)
 
         self.settings.setValue("last_session_files", open_files)
+        self.settings.setValue("window_geometry", self.saveGeometry())
+        self.settings.setValue("window_state", self.saveState())
         event.accept()
 
     def restore_last_session(self):
@@ -185,8 +190,35 @@ class MainWindow(QMainWindow):
         if files_opened == 0:
             self.create_new_document()
 
+    def restore_ui_session(self):
+        geometry = self.settings.value("window_geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        
+        state = self.settings.value("window_state")
+        if state:
+            self.restoreState(state)
+
+    def restore_default_layout(self):
+        self.resize(1200, 800)
+        # Assuming 'Tools' dock is the only one for now
+        dock = self.findChild(QDockWidget, "ToolsDock")
+        if dock:
+            self.addDockWidget(Qt.RightDockWidgetArea, dock)
+            dock.setFloating(False)
+            dock.show()
+        
+        # Also ensure Toolbar is visible if we want a full reset?
+        toolbar = self.findChild(object, "MainToolbar")
+        # Toolbars are usually QToolBar, but findChild(object...) or findChild(QToolBar...)
+        # Since we didn't import QToolBar, it might fail if we use the type directly without import.
+        # But 'toolbar' variable in create_menu_bar is local.
+        # It's better to rely on QMainWindow's functionality or findChild with string name if specific class not imported.
+        # But we can just leave it as is for now, main request is geometry/dock.
+
     def create_tools_dock(self):
         dock = QDockWidget("Tools", self)
+        dock.setObjectName("ToolsDock")
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
         panel = QWidget()
@@ -237,6 +269,7 @@ class MainWindow(QMainWindow):
     def create_menu_bar(self):
         menubar = self.menuBar()
         toolbar = self.addToolBar("Main Toolbar")
+        toolbar.setObjectName("MainToolbar")
         style = self.style()
 
         # File Menu
@@ -290,6 +323,11 @@ class MainWindow(QMainWindow):
         close_action = window_menu.addAction("Close Tab")
         close_action.setShortcut("Ctrl+W")
         close_action.triggered.connect(self.close_current_tab)
+
+        window_menu.addSeparator()
+
+        restore_layout_action = window_menu.addAction("Restore Default Layout")
+        restore_layout_action.triggered.connect(self.restore_default_layout)
 
     def update_recent_menu(self):
         self.recent_menu.clear()
