@@ -8,9 +8,11 @@ import random
 from PySide6.QtCore import QRectF, QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QColorDialog,
     QComboBox,
     QDockWidget,
     QFileDialog,
+    QGraphicsColorizeEffect,
     QGraphicsPixmapItem,
     QGraphicsScene,
     QGraphicsView,
@@ -83,6 +85,11 @@ class CanvasWidget(QGraphicsView):
         z = self.character_data.get_article_z_index(article)
         item.setZValue(z)
 
+        if article.tint:
+            effect = QGraphicsColorizeEffect()
+            effect.setColor(article.tint)
+            item.setGraphicsEffect(effect)
+
         self.scene.addItem(item)
         self.pixmap_items[article.layer_name] = item
         self.active_articles[article.layer_name] = article
@@ -99,6 +106,21 @@ class CanvasWidget(QGraphicsView):
     def is_article_active(self, article: Article) -> bool:
         current_article = self.active_articles.get(article.layer_name)
         return current_article is not None and current_article.id == article.id
+
+    def set_article_tint(self, article: Article, color_str: str):
+        if not article or article.layer_name not in self.pixmap_items:
+            return
+
+        article.tint = color_str
+        item = self.pixmap_items[article.layer_name]
+
+        # Remove existing effect if any
+        item.setGraphicsEffect(None)
+
+        if color_str:
+            effect = QGraphicsColorizeEffect()
+            effect.setColor(color_str)
+            item.setGraphicsEffect(effect)
 
     def set_zoom(self, scale):
         self.current_zoom = scale
@@ -409,6 +431,33 @@ class MainWindow(QMainWindow):
 
         # Edit Menu
         edit_menu = menubar.addMenu("Edit")
+
+        tint_action = QAction("Tint Active Item", self)
+        tint_action.setShortcut("Ctrl+T")
+        tint_action.setIcon(
+            QIcon.fromTheme(
+                "format-fill-color", style.standardIcon(QStyle.SP_DialogApplyButton)
+            )
+        )
+        tint_action.triggered.connect(self.on_tint_clicked)
+        # Add to toolbar next to change outfit
+        self.main_toolbar.addAction(tint_action)
+
+        # Reset Tint Action
+        reset_tint_action = QAction("Reset Tint", self)
+        reset_tint_action.setShortcut("Ctrl+Shift+T")
+        # Try to use edit-clear or similar
+        reset_tint_action.setIcon(
+            QIcon.fromTheme(
+                "edit-clear", style.standardIcon(QStyle.SP_DialogResetButton)
+            )
+        )
+        reset_tint_action.triggered.connect(self.on_reset_tint_clicked)
+        self.main_toolbar.addAction(reset_tint_action)
+
+        edit_menu.addAction(tint_action)
+        edit_menu.addAction(reset_tint_action)
+        edit_menu.addSeparator()
         edit_menu.addAction(random_action)
         edit_menu.addAction(change_outfit_action)
 
@@ -695,6 +744,13 @@ class MainWindow(QMainWindow):
         canvas = self.get_current_canvas()
         if not canvas:
             return
+
+        # Enforce exclusive selection: Clear selection in other lists
+        sender_list = item.listWidget()
+        for selector in self.category_selectors:
+            if selector != sender_list:
+                selector.clearSelection()
+
         article = item.data(Qt.UserRole)
 
         if canvas.is_article_active(article):
@@ -758,10 +814,17 @@ class MainWindow(QMainWindow):
 
         active_ids = [article.id for article in canvas.active_articles.values()]
 
+        # Collect tints
+        tints = {}
+        for article in canvas.active_articles.values():
+            if article.tint:
+                tints[article.id] = article.tint
+
         data = {
             "character_name": canvas.character_data.name,
             "articles_file": canvas.character_data.articles_filename,
             "active_articles": active_ids,
+            "article_tints": tints,
         }
 
         try:
@@ -794,6 +857,7 @@ class MainWindow(QMainWindow):
             char_name = data.get("character_name")
             articles_file = data.get("articles_file")
             active_ids = data.get("active_articles", [])
+            article_tints = data.get("article_tints", {})
 
             if not char_name or not articles_file:
                 raise ValueError("Invalid project file format.")
@@ -834,6 +898,12 @@ class MainWindow(QMainWindow):
             for art_id in active_ids:
                 article = canvas.character_data.get_article_by_id(art_id)
                 if article:
+                    # Apply tint if exists
+                    if art_id in article_tints:
+                        article.tint = article_tints[art_id]
+                    else:
+                        article.tint = None
+
                     canvas.update_article(article)
                 else:
                     logging.warning(f"Article {art_id} not found")
@@ -912,6 +982,55 @@ class MainWindow(QMainWindow):
             logging.info(
                 f"Change Outfit: Updating article {article.image_name} (Cat: {article.category}, Layer: {article.layer_name})"
             )
+            # Clear tint for new random articles? Usually yes.
+            article.tint = None
             canvas.update_article(article)
 
+        self.update_asset_list_visuals()
+
+    def get_selected_article(self):
+        """Helper to find the currently selected article in the UI."""
+        for i in range(self.assets_layout.count()):
+            item = self.assets_layout.itemAt(i)
+            widget = item.widget()
+
+            if isinstance(widget, CollapsibleBox):
+                if widget.toggle_button.isChecked():
+                    if widget.content_layout.count() > 0:
+                        content_item = widget.content_layout.itemAt(0)
+                        selector = content_item.widget()
+                        if isinstance(selector, AssetSelector):
+                            selected_items = selector.selectedItems()
+                            if selected_items:
+                                return selected_items[0].data(Qt.UserRole)
+        return None
+
+    def on_tint_clicked(self):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
+
+        target_article = self.get_selected_article()
+
+        if not target_article:
+            QMessageBox.information(self, "Info", "Please select an item to tint.")
+            return
+
+        color = QColorDialog.getColor(Qt.white, self, "Select Tint Color")
+        if color.isValid():
+            canvas.set_article_tint(target_article, color.name())
+            self.update_asset_list_visuals()
+
+    def on_reset_tint_clicked(self):
+        canvas = self.get_current_canvas()
+        if not canvas:
+            return
+
+        target_article = self.get_selected_article()
+
+        if not target_article:
+            QMessageBox.information(self, "Info", "Please select an item to reset.")
+            return
+
+        canvas.set_article_tint(target_article, None)
         self.update_asset_list_visuals()

@@ -18,6 +18,7 @@ class Article:
     y: int
     wearing: str  # "-1" or other values, might use for defaults
     local_path: str = ""
+    tint: str = None  # Hex color string, e.g. "#FF0000"
 
 
 class CharacterData:
