@@ -25,45 +25,65 @@ This will open the main window where you can start creating characters immediate
 The editor interface consists of three main areas:
 
 1.  **Canvas (Center):** This is your workspace where the character is assembled. You can see your changes in real-time.
-2.  **Tools Panel (Left/Right):** Contains all the controls for selecting characters, assets, and other utilities.
-3.  **Menu Bar (Top):** Provides access to file operations and window management.
+2.  **Tools Panel (Right):** Contains controls for selecting characters and a list of available assets organized by category.
+3.  **Main Toolbar (Top):** Provides quick access to common actions like saving, opening, and modifying the character.
 
 ### Tools Panel
 
 -   **Character Type:** Dropdown to select the base style of the character (e.g., Boy, Girl, Robot).
 -   **Articles File:** Selects the specific data file defining available assets for the chosen character type.
--   **Category Tabs:** Organize assets into groups like Body, Head, Hair, etc.
--   **Asset List:** Displays icons for all available items in the selected category.
+-   **Asset Categories:** A scrollable list of collapsible categories (e.g., **Body**, **Head**, **Hair**, **Tops**). Click the arrow or title to expand/collapse a category.
+-   **Asset List:** Inside each category, icons represent available items.
+
+### Main Toolbar
+
+The toolbar at the top provides buttons for:
+-   **File Operations:** Open, Save, Save As, Export.
 -   **Random:** Generates a completely random character.
--   **Zoom Controls:** Buttons to Zoom In (+) and Zoom Out (-) of the canvas.
+-   **Change Outfit:** Randomizes clothes and accessories while keeping the body and head (identity) intact.
+-   **Tinting:** Tools to colorize specific items (see [Tinting Items](#tinting-items)).
+-   **Zoom:** Zoom In/Out.
 
 ## Working with Projects
 
-A "Project" (`.stp` or `.json` file) saves the current configuration of your character (which assets are selected and their positions), allowing you to edit them later.
+A "Project" (`.stp` or `.json` file) saves the current configuration of your character (selected assets, positions, and tints).
 
 -   **New Project:** Creates a fresh, empty workspace in a new tab.
 -   **Open Project:** Loads a previously saved project file.
--   **Open Recent:** Quickly access your most recently opened files.
--   **Save Project:** Saves your current progress. If it's a new project, you will be prompted to choose a file location.
--   **Save Project As:** Save the current project to a ne filew location.
+-   **Open Recent:** Quickly access your most recently opened files from the File menu.
+-   **Save Project:** Saves your current progress.
+-   **Save Project As:** Save the current project to a new file location.
+-   **Restore Default Layout:** If you lose a dock or toolbar, use **Window > Restore Default Layout** to reset the interface.
 
-> **Note:** The editor restores your last session automatically when you reopen it.
+> **Note:** The editor restores your last session (open tabs and window state) automatically when you reopen it.
 
 ## Creating Characters
 
-1.  **Select a Character Type:** Use the "Character Type" dropdown in the Tools panel to choose a base.
-2.  **Browse Categories:** Click through the tabs (Body, Head, etc.) to view different asset types.
-3.  **Add Assets:** Click on an icon in the Asset List to add it to your character on the canvas.
+1.  **Select a Character Type:** Use the "Character Type" dropdown in the Tools panel.
+2.  **Browse Assets:** Expand categories in the Tools panel to view available items.
+3.  **Add Assets:** Click an icon to add it to your character.
     -   Active assets are highlighted in **Cyan**.
-    -   Clicking a different asset in the same layer overrides the previous one.
-4.  **Remove Assets:** Right-click an asset in the list to remove it, or simply click a different one to replace it.
-5.  **Randomize:** Click the **Random** button to instantly generate a unique character combination.
+    -   Clicking a different asset in the same layer replaces the previous one.
+4.  **Remove Assets:** Click an already active (cyan) asset to remove it.
+
+### Randomization
+
+-   **Random:** Randomizes everything, including character base, specific articles file, and all outfit pieces.
+-   **Change Outfit:** Keeps the current character base (Body, Head) but randomizes clothing (Tops, Bottoms, Shoes, etc.).
+
+### Tinting Items
+
+You can apply a color tint to any selected item.
+
+1.  **Select an Item:** Click an asset in the Tools panel so it is active (cyan).
+2.  **Tint:** Click the **Tint Active Item** button in the toolbar (or press `Ctrl+T`). A color picker will appear. Select a color to apply it.
+3.  **Reset Tint:** To remove the color, select the item and click **Reset Tint** (or press `Ctrl+Shift+T`).
 
 ## Exporting
 
 Once you are happy with your character, you can export it as an image.
 
-1.  Click **Save Character to PNG** in the Tools panel, or select **File > Export to PNG...**.
+1.  Click the **Export to PNG** button in the toolbar, or select **File > Export to PNG...**.
 2.  Choose a destination and filename.
 3.  The character will be saved as a transparent PNG image.
 
@@ -77,3 +97,7 @@ Once you are happy with your character, you can export it as an image.
 | **Save Project As** | `Ctrl + Shift + S` |
 | **Export to PNG** | `Ctrl + E` |
 | **Close Tab** | `Ctrl + W` |
+| **Tint Active Item** | `Ctrl + T` |
+| **Reset Tint** | `Ctrl + Shift + T` |
+| **Zoom In** | `Ctrl + +` |
+| **Zoom Out** | `Ctrl + -` |
