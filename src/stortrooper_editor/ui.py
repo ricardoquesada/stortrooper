@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMdiSubWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStyle,
     QTabWidget,
     QToolBar,
@@ -124,9 +125,39 @@ class AssetSelector(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QListWidget.IconMode)
-        self.setIconSize(QSize(128, 128))
+        self.setIconSize(QSize(64, 64))  # Smaller icons for grid? Or keep 128? User said "grid", let's stick to 64 or so to fit more. Let's try 64 first, or maybe 96.
+        # Actually user didn't specify size, but 128 is quite big for a "grid of many categories". 
+        # Let's keep 128 for now but maybe make it adjustable? Or stick to existing style.
+        # Existing was 128. Let's try 80 to be tighter.
+        self.setIconSize(QSize(80, 80))
         self.setResizeMode(QListWidget.Adjust)
         self.setSpacing(10)
+        self.setMovement(QListWidget.Static)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setSizePolicy(
+            self.sizePolicy().horizontalPolicy(),
+            self.sizePolicy().verticalPolicy().Minimum,  # Allow shrinking?
+        )
+
+    def sizeHint(self):
+        # Calculate height based on rows
+        # This is tricky because width allows reflow.
+        # We need to rely on the model or do a layout check.
+        # Simple hack: visualItemRect of last item.
+        if self.count() == 0:
+            return QSize(self.width(), 0)
+        
+        last_rect = self.visualItemRect(self.item(self.count() - 1))
+        height = last_rect.bottom() + self.spacing() * 2
+        return QSize(self.width(), height)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.updateGeometry()  # Trigger layout update in parent
+
+    def on_items_changed(self):
+         self.updateGeometry()
 
 
 class MainWindow(QMainWindow):
@@ -236,19 +267,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Articles File:"))
         layout.addWidget(self.articles_combo)
 
-        # Category Tabs
-        self.category_tabs = QTabWidget()
-        self.category_tabs.currentChanged.connect(self.on_category_changed)
-        layout.addWidget(self.category_tabs)
-
-        # Asset List
-        self.asset_list = AssetSelector()
-        self.asset_list.itemClicked.connect(self.on_asset_clicked)
-        self.asset_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.asset_list.customContextMenuRequested.connect(
-            self.on_asset_list_context_menu
-        )
-        layout.addWidget(self.asset_list)
+        # Asset List Scroll Area
+        self.assets_scroll_area = QScrollArea()
+        self.assets_scroll_area.setWidgetResizable(True)
+        self.assets_container = QWidget()
+        self.assets_layout = QVBoxLayout(self.assets_container)
+        self.assets_scroll_area.setWidget(self.assets_container)
+        layout.addWidget(self.assets_scroll_area)
+        
+        # Keep track of active selectors
+        self.category_selectors = []
 
 
 
@@ -419,8 +447,7 @@ class MainWindow(QMainWindow):
     def update_ui_from_active_tab(self, index):
         if index < 0:
             # Could clear UI or disable properties
-            self.asset_list.clear()
-            self.category_tabs.clear()
+            self.clear_asset_selectors()
             return
 
         canvas = self.tab_widget.widget(index)
@@ -453,41 +480,52 @@ class MainWindow(QMainWindow):
 
         self.refresh_categories_and_assets(canvas)
 
+    def clear_asset_selectors(self):
+        # Clear layout
+        while self.assets_layout.count():
+            item = self.assets_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self.category_selectors = []
+
     def refresh_categories_and_assets(self, canvas):
+        self.clear_asset_selectors()
+
         if not hasattr(canvas, "character_data") or not canvas.character_data:
-            self.category_tabs.clear()
-            self.asset_list.clear()
             return
-
-        # Store current tab text to restore it?
-        current_tab_text = self.category_tabs.tabText(self.category_tabs.currentIndex())
-
-        self.category_tabs.blockSignals(True)
-        self.category_tabs.clear()
 
         categories = sorted(list(canvas.character_data.categories.keys()))
         if "body" in categories:
             categories.insert(0, categories.pop(categories.index("body")))
 
-        for cat in categories:
-            self.category_tabs.addTab(QWidget(), cat)
+        for cat_name in categories:
+            # Header
+            label = QLabel(cat_name.title()) # Capitalize like "Body", "Hats"
+            label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+            self.assets_layout.addWidget(label)
 
-        self.category_tabs.blockSignals(False)
+            # Selector
+            selector = AssetSelector()
+            selector.itemClicked.connect(self.on_asset_clicked)
+            
+            articles = canvas.character_data.categories.get(cat_name, [])
+            for article in articles:
+                item = QListWidgetItem(article.image_name)
+                pixmap = QPixmap(article.local_path)
+                if not pixmap.isNull():
+                    item.setIcon(QIcon(pixmap))
+                item.setData(Qt.UserRole, article)
+                selector.addItem(item)
+            
+            selector.on_items_changed() # Trigger resize
+            self.assets_layout.addWidget(selector)
+            self.category_selectors.append(selector)
 
-        # Try to restore tab or default
-        idx = -1
-        if current_tab_text:
-            for i in range(self.category_tabs.count()):
-                if self.category_tabs.tabText(i) == current_tab_text:
-                    idx = i
-                    break
-
-        if idx == -1 and self.category_tabs.count() > 0:
-            idx = 0
-
-        if idx != -1:
-            self.category_tabs.setCurrentIndex(idx)
-            self.on_category_changed(idx)
+        # Add stretch at end to push up
+        self.assets_layout.addStretch()
+        
+        self.update_asset_list_visuals()
 
     def on_character_changed(self):
         char_name = self.char_combo.currentText()
@@ -544,64 +582,34 @@ class MainWindow(QMainWindow):
 
         self.refresh_categories_and_assets(canvas)
 
-    def on_category_changed(self, index):
-        if index < 0:
-            return
-
-        canvas = self.get_current_canvas()
-        if (
-            not canvas
-            or not hasattr(canvas, "character_data")
-            or not canvas.character_data
-        ):
-            self.asset_list.clear()
-            return
-
-        cat_name = self.category_tabs.tabText(index)
-        self.asset_list.clear()
-
-        articles = canvas.character_data.categories.get(cat_name, [])
-        for article in articles:
-            item = QListWidgetItem(article.image_name)
-            pixmap = QPixmap(article.local_path)
-            if not pixmap.isNull():
-                item.setIcon(QIcon(pixmap))
-            item.setData(Qt.UserRole, article)
-            self.asset_list.addItem(item)
-
-        self.update_asset_list_visuals()
-
     def update_asset_list_visuals(self):
         canvas = self.get_current_canvas()
         if not canvas:
             return
 
-        for i in range(self.asset_list.count()):
-            item = self.asset_list.item(i)
-            article = item.data(Qt.UserRole)
-            if canvas.is_article_active(article):
-                item.setBackground(Qt.cyan)
-            else:
-                item.setBackground(Qt.NoBrush)
+        for selector in self.category_selectors:
+            for i in range(selector.count()):
+                item = selector.item(i)
+                article = item.data(Qt.UserRole)
+                if canvas.is_article_active(article):
+                    item.setBackground(Qt.cyan)
+                else:
+                    item.setBackground(Qt.NoBrush)
 
     def on_asset_clicked(self, item):
         canvas = self.get_current_canvas()
         if not canvas:
             return
         article = item.data(Qt.UserRole)
-        canvas.update_article(article)
+        
+        if canvas.is_article_active(article):
+            # Deselect / Remove
+            canvas.remove_article(article)
+        else:
+            # Select / Add / Replace
+            canvas.update_article(article)
+            
         self.update_asset_list_visuals()
-
-    def on_asset_list_context_menu(self, position):
-        canvas = self.get_current_canvas()
-        if not canvas:
-            return
-        item = self.asset_list.itemAt(position)
-        if item:
-            article = item.data(Qt.UserRole)
-            if canvas.is_article_active(article):
-                canvas.remove_article(article)
-                self.update_asset_list_visuals()
 
     def zoom_in(self):
         canvas = self.get_current_canvas()
