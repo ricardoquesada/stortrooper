@@ -382,6 +382,8 @@ class MainWindow(QMainWindow):
         export_action.triggered.connect(self.save_character)
         self.main_toolbar.addAction(export_action)
 
+        self.main_toolbar.addSeparator()
+
         # Random Action
         random_action = QAction("Random", self)
         random_action.setIcon(
