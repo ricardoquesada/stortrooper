@@ -455,6 +455,8 @@ class MainWindow(QMainWindow):
         reset_tint_action.triggered.connect(self.on_reset_tint_clicked)
         self.main_toolbar.addAction(reset_tint_action)
 
+        self.main_toolbar.addSeparator()
+
         edit_menu.addAction(tint_action)
         edit_menu.addAction(reset_tint_action)
         edit_menu.addSeparator()
