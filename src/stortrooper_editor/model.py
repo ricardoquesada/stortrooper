@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 
-
-    
 @dataclass
 class Article:
     id: str

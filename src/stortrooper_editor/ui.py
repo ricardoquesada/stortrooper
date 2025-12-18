@@ -19,14 +19,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
-    QMdiArea,
-    QMdiSubWindow,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QStyle,
     QTabWidget,
-    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -125,8 +122,10 @@ class AssetSelector(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QListWidget.IconMode)
-        self.setIconSize(QSize(64, 64))  # Smaller icons for grid? Or keep 128? User said "grid", let's stick to 64 or so to fit more. Let's try 64 first, or maybe 96.
-        # Actually user didn't specify size, but 128 is quite big for a "grid of many categories". 
+        self.setIconSize(
+            QSize(64, 64)
+        )  # Smaller icons for grid? Or keep 128? User said "grid", let's stick to 64 or so to fit more. Let's try 64 first, or maybe 96.
+        # Actually user didn't specify size, but 128 is quite big for a "grid of many categories".
         # Let's keep 128 for now but maybe make it adjustable? Or stick to existing style.
         # Existing was 128. Let's try 80 to be tighter.
         self.setIconSize(QSize(80, 80))
@@ -147,7 +146,7 @@ class AssetSelector(QListWidget):
         # Simple hack: visualItemRect of last item.
         if self.count() == 0:
             return QSize(self.width(), 0)
-        
+
         last_rect = self.visualItemRect(self.item(self.count() - 1))
         height = last_rect.bottom() + self.spacing() * 2
         return QSize(self.width(), height)
@@ -157,7 +156,7 @@ class AssetSelector(QListWidget):
         self.updateGeometry()  # Trigger layout update in parent
 
     def on_items_changed(self):
-         self.updateGeometry()
+        self.updateGeometry()
 
 
 class MainWindow(QMainWindow):
@@ -226,7 +225,7 @@ class MainWindow(QMainWindow):
         geometry = self.settings.value("window_geometry")
         if geometry:
             self.restoreGeometry(geometry)
-        
+
         state = self.settings.value("window_state")
         if state:
             self.restoreState(state)
@@ -239,7 +238,7 @@ class MainWindow(QMainWindow):
             self.addDockWidget(Qt.RightDockWidgetArea, dock)
             dock.setFloating(False)
             dock.show()
-        
+
         if hasattr(self, "main_toolbar") and self.main_toolbar:
             logging.info("Restoring toolbar visibility and position")
             self.addToolBar(Qt.TopToolBarArea, self.main_toolbar)
@@ -274,12 +273,9 @@ class MainWindow(QMainWindow):
         self.assets_layout = QVBoxLayout(self.assets_container)
         self.assets_scroll_area.setWidget(self.assets_container)
         layout.addWidget(self.assets_scroll_area)
-        
+
         # Keep track of active selectors
         self.category_selectors = []
-
-
-
 
         # Zoom Controls
         zoom_layout = QHBoxLayout()
@@ -309,7 +305,11 @@ class MainWindow(QMainWindow):
 
         open_action = file_menu.addAction("Open Project...")
         open_action.setShortcut("Ctrl+O")
-        open_action.setIcon(QIcon.fromTheme("document-open", style.standardIcon(QStyle.SP_DialogOpenButton)))
+        open_action.setIcon(
+            QIcon.fromTheme(
+                "document-open", style.standardIcon(QStyle.SP_DialogOpenButton)
+            )
+        )
         open_action.triggered.connect(self.open_project)
         self.main_toolbar.addAction(open_action)
 
@@ -320,14 +320,22 @@ class MainWindow(QMainWindow):
         # Save Action
         save_action = file_menu.addAction("Save")
         save_action.setShortcut("Ctrl+S")
-        save_action.setIcon(QIcon.fromTheme("document-save", style.standardIcon(QStyle.SP_DialogSaveButton)))
+        save_action.setIcon(
+            QIcon.fromTheme(
+                "document-save", style.standardIcon(QStyle.SP_DialogSaveButton)
+            )
+        )
         save_action.triggered.connect(self.save_project)
         self.main_toolbar.addAction(save_action)
 
         save_as_action = file_menu.addAction("Save As...")
         save_as_action.setShortcut("Ctrl+Shift+S")
         # Reuse save icon for now
-        save_as_action.setIcon(QIcon.fromTheme("document-save-as", style.standardIcon(QStyle.SP_DialogSaveButton)))
+        save_as_action.setIcon(
+            QIcon.fromTheme(
+                "document-save-as", style.standardIcon(QStyle.SP_DialogSaveButton)
+            )
+        )
         save_as_action.triggered.connect(self.save_project_as)
         self.main_toolbar.addAction(save_as_action)
 
@@ -335,22 +343,34 @@ class MainWindow(QMainWindow):
 
         export_action = file_menu.addAction("Export to PNG...")
         export_action.setShortcut("Ctrl+E")
-        export_action.setIcon(QIcon.fromTheme("document-export", style.standardIcon(QStyle.SP_DialogApplyButton)))
+        export_action.setIcon(
+            QIcon.fromTheme(
+                "document-export", style.standardIcon(QStyle.SP_DialogApplyButton)
+            )
+        )
         export_action.triggered.connect(self.save_character)
         self.main_toolbar.addAction(export_action)
-        
+
         # Random Action
         random_action = QAction("Random", self)
-        random_action.setIcon(QIcon.fromTheme("media-playlist-shuffle", style.standardIcon(QStyle.SP_BrowserReload)))
+        random_action.setIcon(
+            QIcon.fromTheme(
+                "media-playlist-shuffle", style.standardIcon(QStyle.SP_BrowserReload)
+            )
+        )
         random_action.triggered.connect(self.randomize_character)
         self.main_toolbar.addAction(random_action)
 
         # Change Outfit Action
         change_outfit_action = QAction("Change Outfit", self)
         # Using a t-shirt icon or similar if available, or just a generic one
-        change_outfit_action.setIcon(QIcon.fromTheme("applications-accessories", style.standardIcon(QStyle.SP_DesktopIcon)))
+        change_outfit_action.setIcon(
+            QIcon.fromTheme(
+                "applications-accessories", style.standardIcon(QStyle.SP_DesktopIcon)
+            )
+        )
         change_outfit_action.triggered.connect(self.change_outfit)
-        self.main_toolbar.addAction( change_outfit_action)
+        self.main_toolbar.addAction(change_outfit_action)
 
         # Window Menu
         window_menu = menubar.addMenu("Window")
@@ -424,7 +444,7 @@ class MainWindow(QMainWindow):
 
         index = self.tab_widget.addTab(canvas, "Untitled")
         self.tab_widget.setCurrentIndex(index)
-        
+
         # Initialize with current selection if possible
         self.reload_data()
 
@@ -501,14 +521,14 @@ class MainWindow(QMainWindow):
 
         for cat_name in categories:
             # Header
-            label = QLabel(cat_name.title()) # Capitalize like "Body", "Hats"
+            label = QLabel(cat_name.title())  # Capitalize like "Body", "Hats"
             label.setStyleSheet("font-weight: bold; margin-top: 10px;")
             self.assets_layout.addWidget(label)
 
             # Selector
             selector = AssetSelector()
             selector.itemClicked.connect(self.on_asset_clicked)
-            
+
             articles = canvas.character_data.categories.get(cat_name, [])
             for article in articles:
                 item = QListWidgetItem(article.image_name)
@@ -517,14 +537,14 @@ class MainWindow(QMainWindow):
                     item.setIcon(QIcon(pixmap))
                 item.setData(Qt.UserRole, article)
                 selector.addItem(item)
-            
-            selector.on_items_changed() # Trigger resize
+
+            selector.on_items_changed()  # Trigger resize
             self.assets_layout.addWidget(selector)
             self.category_selectors.append(selector)
 
         # Add stretch at end to push up
         self.assets_layout.addStretch()
-        
+
         self.update_asset_list_visuals()
 
     def on_character_changed(self):
@@ -601,14 +621,14 @@ class MainWindow(QMainWindow):
         if not canvas:
             return
         article = item.data(Qt.UserRole)
-        
+
         if canvas.is_article_active(article):
             # Deselect / Remove
             canvas.remove_article(article)
         else:
             # Select / Add / Replace
             canvas.update_article(article)
-            
+
         self.update_asset_list_visuals()
 
     def zoom_in(self):
@@ -677,7 +697,9 @@ class MainWindow(QMainWindow):
             )
             # Update window title and path
             canvas.project_file_path = file_path
-            self.tab_widget.setTabText(self.tab_widget.currentIndex(), os.path.basename(file_path))
+            self.tab_widget.setTabText(
+                self.tab_widget.currentIndex(), os.path.basename(file_path)
+            )
             self.add_recent_file(file_path)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{e}")
@@ -745,7 +767,9 @@ class MainWindow(QMainWindow):
 
             # Update window and tracking
             canvas.project_file_path = file_path
-            self.tab_widget.setTabText(self.tab_widget.currentIndex(), os.path.basename(file_path))
+            self.tab_widget.setTabText(
+                self.tab_widget.currentIndex(), os.path.basename(file_path)
+            )
             self.add_recent_file(file_path)
             return True
 
@@ -756,20 +780,18 @@ class MainWindow(QMainWindow):
     def randomize_character(self):
         # 1. Randomize Character
         if self.char_combo.count() > 0:
-            import random  # Ensure it's available or use the module level one
             # Logic to pick a random character
             # We want to allow picking the SAME character too, so we just pick any index.
-            # But if we pick the same index, no signal is emitted, so we might need to manually trigger updates 
+            # But if we pick the same index, no signal is emitted, so we might need to manually trigger updates
             # OR we just trust that if it's the same, we don't need to change it.
             # However, for "articles file", if we stick to the same character, we might want to change the article file.
-            
             # Let's pick a random char index
             char_idx = random.randint(0, self.char_combo.count() - 1)
             self.char_combo.setCurrentIndex(char_idx)
-            
+
             # If the index didn't change, on_character_changed wasn't called.
             # But we might still want to randomize the article file.
-            
+
         # 2. Randomize Article File
         # The char combo change (if any) updated the articles combo.
         if self.articles_combo.count() > 0:
@@ -787,10 +809,10 @@ class MainWindow(QMainWindow):
             return
 
         canvas.clear()
-        
+
         for article in new_outfit:
             canvas.update_article(article)
-            
+
         self.update_asset_list_visuals()
 
     def change_outfit(self):
@@ -800,17 +822,21 @@ class MainWindow(QMainWindow):
 
         # Define "Outfit" as everything EXCEPT body and hair.
         all_categories = list(canvas.character_data.categories.keys())
-        excluded = ["body", "hair", "face", "head"] 
+        excluded = ["body", "hair", "face", "head"]
         target_categories = [c for c in all_categories if c not in excluded]
-        
+
         logging.info(f"Change Outfit: All Categories: {all_categories}")
         logging.info(f"Change Outfit: Target Categories: {target_categories}")
 
-        new_articles = canvas.character_data.get_random_articles_subset(target_categories)
-        
+        new_articles = canvas.character_data.get_random_articles_subset(
+            target_categories
+        )
+
         # Let's iterate and update.
         for article in new_articles:
-            logging.info(f"Change Outfit: Updating article {article.image_name} (Cat: {article.category}, Layer: {article.layer_name})")
+            logging.info(
+                f"Change Outfit: Updating article {article.image_name} (Cat: {article.category}, Layer: {article.layer_name})"
+            )
             canvas.update_article(article)
-            
+
         self.update_asset_list_visuals()
