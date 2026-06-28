@@ -66,3 +66,19 @@ def test_random_outfit(res_path):
     # Check that articles are Article objects
     for art in outfit:
         assert isinstance(art, Article)
+
+
+def test_guali_character_load():
+    """Test loading the real guali character data."""
+    import os
+    res_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "res")
+    char_data = CharacterData("guali", res_path)
+    char_data.load()
+
+    # Verify guali_head_02.png is loaded
+    guali_head_02 = char_data.get_article_by_id("90003")
+    assert guali_head_02 is not None
+    assert guali_head_02.image_name == "guali_head_02.png"
+    assert guali_head_02.category == "hats"
+    assert guali_head_02.layer_name == "hats"
+

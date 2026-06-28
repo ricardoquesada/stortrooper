@@ -164,4 +164,5 @@ HCDataSetFile_data
 "50185" "boy_trooper_01.png" "extras" "bottoms" "24" "64" "-1"
 "50184" "boy_hat_05.png" "hats" "hats" "26" "27" "0.05"
 "90001"	"guali_heart.png"	"tops"	"tops"	"26"	"28"	"-1"
-"90002"	"guali_head.png"	"hats"	"hats"	"26"	"28"	"-1"
+"90003"	"guali_head_02.png"	"hats"	"hats"	"31"	"22"	"-1"
+

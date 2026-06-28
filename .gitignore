@@ -39,3 +39,6 @@ ENV/
 .idea/
 *.swp
 *.swo
+
+# Apple
+.DS_Store
