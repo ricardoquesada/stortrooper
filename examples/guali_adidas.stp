@@ -1,0 +1,12 @@
+{
+    "character_name": "guali",
+    "articles_file": "articles.txt",
+    "active_articles": [
+        "10",
+        "90003",
+        "106",
+        "16",
+        "145"
+    ],
+    "article_tints": {}
+}
