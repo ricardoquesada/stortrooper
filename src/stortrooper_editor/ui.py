@@ -3,10 +3,17 @@
 import json
 import logging
 import os
-import random
 
 from PySide6.QtCore import QRectF, QSettings, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtGui import (
+    QAction,
+    QIcon,
+    QImage,
+    QPainter,
+    QPixmap,
+    QUndoGroup,
+    QUndoStack,
+)
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -29,6 +36,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .commands import (
+    ChangeCharacterDataCommand,
+    ChangeOutfitCommand,
+    EquipArticleCommand,
+    RandomizeCommand,
+    TintArticleCommand,
+    UnequipArticleCommand,
+)
 from .model import Article, CharacterData
 
 
@@ -49,6 +64,7 @@ class CanvasWidget(QGraphicsView):
         self.current_zoom = 4.0
         self.project_file_path = None
         self.category_states = {}  # category_name -> bool (expanded)
+        self.undo_stack = QUndoStack(self)
 
     def get_category_expanded(self, category_name: str) -> bool:
         return self.category_states.get(category_name, True)  # Default to expanded
@@ -228,6 +244,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("StorTrooper Character Editor")
         self.resize(1200, 800)
         self.res_path = res_path
+        self.undo_group = QUndoGroup(self)
 
         # Settings
         self.settings = QSettings("RetroMoe", "StorTrooperEditor")
@@ -257,6 +274,15 @@ class MainWindow(QMainWindow):
         self.restore_last_session()
 
     def closeEvent(self, event):
+        # Check all tabs for unsaved changes
+        for i in range(self.tab_widget.count()):
+            canvas = self.tab_widget.widget(i)
+            if isinstance(canvas, CanvasWidget):
+                self.tab_widget.setCurrentIndex(i)
+                if not self.maybe_save_canvas(canvas):
+                    event.ignore()
+                    return
+
         # Save open documents to session
         open_files = []
         for i in range(self.tab_widget.count()):
@@ -432,6 +458,22 @@ class MainWindow(QMainWindow):
         # Edit Menu
         edit_menu = menubar.addMenu("Edit")
 
+        self.undo_action = self.undo_group.createUndoAction(self, "Undo")
+        self.undo_action.setShortcut("Ctrl+Z")
+        self.undo_action.setIcon(QIcon.fromTheme("edit-undo"))
+
+        self.redo_action = self.undo_group.createRedoAction(self, "Redo")
+        self.redo_action.setShortcut("Ctrl+Y")
+        self.redo_action.setIcon(QIcon.fromTheme("edit-redo"))
+
+        self.main_toolbar.addAction(self.undo_action)
+        self.main_toolbar.addAction(self.redo_action)
+        self.main_toolbar.addSeparator()
+
+        edit_menu.addAction(self.undo_action)
+        edit_menu.addAction(self.redo_action)
+        edit_menu.addSeparator()
+
         tint_action = QAction("Tint Active Item", self)
         tint_action.setShortcut("Ctrl+T")
         tint_action.setIcon(
@@ -554,6 +596,11 @@ class MainWindow(QMainWindow):
     def create_new_document(self):
         canvas = CanvasWidget()
         canvas.set_zoom(4.0)
+        canvas.undo_stack.indexChanged.connect(self.update_asset_list_visuals)
+        canvas.undo_stack.cleanChanged.connect(
+            lambda clean, c=canvas: self.update_tab_title(c)
+        )
+        self.undo_group.addStack(canvas.undo_stack)
 
         index = self.tab_widget.addTab(canvas, "Untitled")
         self.tab_widget.setCurrentIndex(index)
@@ -561,12 +608,19 @@ class MainWindow(QMainWindow):
         # Initialize with current selection if possible
         self.reload_data()
 
+        # Clear the undo stack so the initial setup is not undoable
+        canvas.undo_stack.clear()
+        self.update_tab_title(canvas)
+
     def on_tab_close_requested(self, index):
         if index >= 0:
-            widget = self.tab_widget.widget(index)
-            # Potentially check for unsaved changes here in the future
+            canvas = self.tab_widget.widget(index)
+            if isinstance(canvas, CanvasWidget):
+                if not self.maybe_save_canvas(canvas):
+                    return  # User cancelled
+                self.undo_group.removeStack(canvas.undo_stack)
             self.tab_widget.removeTab(index)
-            widget.deleteLater()
+            canvas.deleteLater()
 
     def close_current_tab(self):
         self.on_tab_close_requested(self.tab_widget.currentIndex())
@@ -586,6 +640,8 @@ class MainWindow(QMainWindow):
         canvas = self.tab_widget.widget(index)
         if not isinstance(canvas, CanvasWidget):
             return
+
+        self.undo_group.setActiveStack(canvas.undo_stack)
 
         # Restore UI state from this canvas
         self.char_combo.blockSignals(True)
@@ -612,6 +668,11 @@ class MainWindow(QMainWindow):
         self.articles_combo.blockSignals(False)
 
         self.refresh_categories_and_assets(canvas)
+
+    def synchronize_ui_with_canvas(self, canvas):
+        idx = self.tab_widget.indexOf(canvas)
+        if idx >= 0:
+            self.update_ui_from_active_tab(idx)
 
     def clear_asset_selectors(self):
         # Clear layout
@@ -711,22 +772,17 @@ class MainWindow(QMainWindow):
         if not char_name:
             return
 
-        # Avoid reloading if it's the same data?
-        # Sometimes we want to force reload.
+        # Avoid pushing command if same
+        if (
+            hasattr(canvas, "character_data")
+            and canvas.character_data
+            and canvas.character_data.name == char_name
+            and canvas.character_data.articles_filename == articles_file
+        ):
+            return
 
-        char_data = CharacterData(
-            char_name, self.res_path, articles_filename=articles_file
-        )
-        char_data.load()
-
-        canvas.set_character(char_data)
-
-        # Default body logic
-        if "body" in char_data.categories:
-            first_body = char_data.categories["body"][0]
-            canvas.update_article(first_body)
-
-        self.refresh_categories_and_assets(canvas)
+        command = ChangeCharacterDataCommand(self, canvas, char_name, articles_file)
+        canvas.undo_stack.push(command)
 
     def update_asset_list_visuals(self):
         canvas = self.get_current_canvas()
@@ -756,13 +812,11 @@ class MainWindow(QMainWindow):
         article = item.data(Qt.UserRole)
 
         if canvas.is_article_active(article):
-            # Deselect / Remove
-            canvas.remove_article(article)
+            command = UnequipArticleCommand(canvas, article)
         else:
-            # Select / Add / Replace
-            canvas.update_article(article)
+            command = EquipArticleCommand(canvas, article)
 
-        self.update_asset_list_visuals()
+        canvas.undo_stack.push(command)
 
     def zoom_in(self):
         canvas = self.get_current_canvas()
@@ -785,34 +839,37 @@ class MainWindow(QMainWindow):
             canvas.save_image(file_path)
 
     def save_project(self):
-        canvas = self.get_current_canvas()
-        if not canvas or not hasattr(canvas, "character_data"):
-            QMessageBox.warning(self, "Warning", "No active project to save.")
-            return
-
-        if canvas.project_file_path:
-            self._save_to_file(canvas.project_file_path)
-        else:
-            self.save_project_as()
+        self.save_canvas_project(self.get_current_canvas())
 
     def save_project_as(self):
-        canvas = self.get_current_canvas()
+        self.save_canvas_project_as(self.get_current_canvas())
+
+    def save_canvas_project(self, canvas) -> bool:
         if not canvas or not hasattr(canvas, "character_data"):
             QMessageBox.warning(self, "Warning", "No active project to save.")
-            return
+            return False
+
+        if canvas.project_file_path:
+            return self._save_to_file(canvas, canvas.project_file_path)
+        else:
+            return self.save_canvas_project_as(canvas)
+
+    def save_canvas_project_as(self, canvas) -> bool:
+        if not canvas or not hasattr(canvas, "character_data"):
+            QMessageBox.warning(self, "Warning", "No active project to save.")
+            return False
 
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Save Project As", "", "StorTrooper Project (*.stp *.json)"
         )
         if not file_path:
-            return
+            return False
 
-        self._save_to_file(file_path)
+        return self._save_to_file(canvas, file_path)
 
-    def _save_to_file(self, file_path):
-        canvas = self.get_current_canvas()
+    def _save_to_file(self, canvas, file_path) -> bool:
         if not canvas:
-            return
+            return False
 
         active_ids = [article.id for article in canvas.active_articles.values()]
 
@@ -837,12 +894,48 @@ class MainWindow(QMainWindow):
             )
             # Update window title and path
             canvas.project_file_path = file_path
-            self.tab_widget.setTabText(
-                self.tab_widget.currentIndex(), os.path.basename(file_path)
-            )
+            canvas.undo_stack.setClean()
+            self.update_tab_title(canvas)
             self.add_recent_file(file_path)
+            return True
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{e}")
+            return False
+
+    def get_canvas_display_name(self, canvas):
+        if canvas.project_file_path:
+            return os.path.basename(canvas.project_file_path)
+        return "Untitled"
+
+    def update_tab_title(self, canvas):
+        index = self.tab_widget.indexOf(canvas)
+        if index < 0:
+            return
+        base_name = self.get_canvas_display_name(canvas)
+        if not canvas.undo_stack.isClean():
+            self.tab_widget.setTabText(index, f"{base_name} *")
+        else:
+            self.tab_widget.setTabText(index, base_name)
+
+    def maybe_save_canvas(self, canvas: CanvasWidget) -> bool:
+        if canvas.undo_stack.isClean():
+            return True
+
+        name = self.get_canvas_display_name(canvas)
+        ret = QMessageBox.warning(
+            self,
+            "Unsaved Changes",
+            f"The document '{name}' has unsaved changes.\nDo you want to save them?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save,
+        )
+
+        if ret == QMessageBox.Save:
+            return self.save_canvas_project(canvas)
+        elif ret == QMessageBox.Discard:
+            return True
+        else:  # QMessageBox.Cancel
+            return False
 
     def open_project(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -914,10 +1007,12 @@ class MainWindow(QMainWindow):
 
             # Update window and tracking
             canvas.project_file_path = file_path
-            self.tab_widget.setTabText(
-                self.tab_widget.currentIndex(), os.path.basename(file_path)
-            )
             self.add_recent_file(file_path)
+
+            # Clear undo stack to avoid undoing the load action
+            canvas.undo_stack.clear()
+            self.update_tab_title(canvas)
+
             return True
 
         except Exception as e:
@@ -925,70 +1020,20 @@ class MainWindow(QMainWindow):
             return False
 
     def randomize_character(self):
-        # 1. Randomize Character
-        if self.char_combo.count() > 0:
-            # Logic to pick a random character
-            # We want to allow picking the SAME character too, so we just pick any index.
-            # But if we pick the same index, no signal is emitted, so we might need to manually trigger updates
-            # OR we just trust that if it's the same, we don't need to change it.
-            # However, for "articles file", if we stick to the same character, we might want to change the article file.
-            # Let's pick a random char index
-            char_idx = random.randint(0, self.char_combo.count() - 1)
-            self.char_combo.setCurrentIndex(char_idx)
-
-            # If the index didn't change, on_character_changed wasn't called.
-            # But we might still want to randomize the article file.
-
-        # 2. Randomize Article File
-        # The char combo change (if any) updated the articles combo.
-        if self.articles_combo.count() > 0:
-            art_idx = random.randint(0, self.articles_combo.count() - 1)
-            self.articles_combo.setCurrentIndex(art_idx)
-
-        # 3. Randomize Outfit
         canvas = self.get_current_canvas()
-        if not canvas or not hasattr(canvas, "character_data"):
+        if not canvas:
             return
 
-        new_outfit = canvas.character_data.get_random_outfit()
-        if not new_outfit:
-            QMessageBox.information(self, "Info", "No articles found to randomize.")
-            return
-
-        canvas.clear()
-
-        for article in new_outfit:
-            canvas.update_article(article)
-
-        self.update_asset_list_visuals()
+        command = RandomizeCommand(self, canvas)
+        canvas.undo_stack.push(command)
 
     def change_outfit(self):
         canvas = self.get_current_canvas()
         if not canvas or not hasattr(canvas, "character_data"):
             return
 
-        # Define "Outfit" as everything EXCEPT body and hair.
-        all_categories = list(canvas.character_data.categories.keys())
-        excluded = ["body", "hair", "face", "head"]
-        target_categories = [c for c in all_categories if c not in excluded]
-
-        logging.info(f"Change Outfit: All Categories: {all_categories}")
-        logging.info(f"Change Outfit: Target Categories: {target_categories}")
-
-        new_articles = canvas.character_data.get_random_articles_subset(
-            target_categories
-        )
-
-        # Let's iterate and update.
-        for article in new_articles:
-            logging.info(
-                f"Change Outfit: Updating article {article.image_name} (Cat: {article.category}, Layer: {article.layer_name})"
-            )
-            # Clear tint for new random articles? Usually yes.
-            article.tint = None
-            canvas.update_article(article)
-
-        self.update_asset_list_visuals()
+        command = ChangeOutfitCommand(self, canvas)
+        canvas.undo_stack.push(command)
 
     def get_selected_article(self):
         """Helper to find the currently selected article in the UI."""
@@ -1020,8 +1065,8 @@ class MainWindow(QMainWindow):
 
         color = QColorDialog.getColor(Qt.white, self, "Select Tint Color")
         if color.isValid():
-            canvas.set_article_tint(target_article, color.name())
-            self.update_asset_list_visuals()
+            command = TintArticleCommand(canvas, target_article, color.name())
+            canvas.undo_stack.push(command)
 
     def on_reset_tint_clicked(self):
         canvas = self.get_current_canvas()
@@ -1034,5 +1079,5 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Info", "Please select an item to reset.")
             return
 
-        canvas.set_article_tint(target_article, None)
-        self.update_asset_list_visuals()
+        command = TintArticleCommand(canvas, target_article, None)
+        canvas.undo_stack.push(command)
