@@ -361,3 +361,104 @@ def test_change_character_data_undo_redo(qtbot, valid_res_path):
     assert window.char_combo.currentText() == "sidekick"
 
     canvas.undo_stack.clear()
+
+
+def test_layer_visibility_undo_redo(qtbot, valid_res_path):
+    """Test toggling layer visibility with undo/redo."""
+    window = MainWindow(valid_res_path)
+    qtbot.addWidget(window)
+    window.show()
+
+    canvas = window.get_current_canvas()
+
+    # 1. Equip shirt_a
+    shirt_a = canvas.character_data.get_article_by_id("2")
+    canvas.undo_stack.push(EquipArticleCommand(canvas, shirt_a))
+
+    assert window.equipped_layout.count() == 2
+
+    tops_row = None
+    for i in range(window.equipped_layout.count()):
+        widget = window.equipped_layout.itemAt(i).widget()
+        if widget and widget.article.layer_name == "tops":
+            tops_row = widget
+            break
+
+    assert tops_row is not None
+    assert canvas.is_layer_visible("tops")
+    assert tops_row.visible_btn.isChecked()
+
+    # 2. Toggle visibility off
+    tops_row.visible_btn.click()
+    assert not canvas.is_layer_visible("tops")
+    assert not tops_row.visible_btn.isChecked()
+
+    # 3. Undo
+    canvas.undo_stack.undo()
+    assert canvas.is_layer_visible("tops")
+
+    # Re-retrieve row widget as they are recreated on indexChanged
+    tops_row = None
+    for i in range(window.equipped_layout.count()):
+        widget = window.equipped_layout.itemAt(i).widget()
+        if widget and widget.article.layer_name == "tops":
+            tops_row = widget
+            break
+    assert tops_row is not None
+    assert tops_row.visible_btn.isChecked()
+
+    # 4. Redo
+    canvas.undo_stack.redo()
+    assert not canvas.is_layer_visible("tops")
+
+    # Re-retrieve row widget
+    tops_row = None
+    for i in range(window.equipped_layout.count()):
+        widget = window.equipped_layout.itemAt(i).widget()
+        if widget and widget.article.layer_name == "tops":
+            tops_row = widget
+            break
+    assert tops_row is not None
+    assert not tops_row.visible_btn.isChecked()
+
+    canvas.undo_stack.clear()
+
+
+def test_equipped_items_remove_button(qtbot, valid_res_path):
+    """Test removing an item using the remove button in Equipped Items panel."""
+    window = MainWindow(valid_res_path)
+    qtbot.addWidget(window)
+    window.show()
+
+    canvas = window.get_current_canvas()
+
+    # Equip shirt_a
+    shirt_a = canvas.character_data.get_article_by_id("2")
+    canvas.undo_stack.push(EquipArticleCommand(canvas, shirt_a))
+    assert canvas.is_article_active(shirt_a)
+    assert window.equipped_layout.count() == 2
+
+    # Find row widget for 'tops'
+    tops_row = None
+    for i in range(window.equipped_layout.count()):
+        widget = window.equipped_layout.itemAt(i).widget()
+        if widget and widget.article.layer_name == "tops":
+            tops_row = widget
+            break
+
+    assert tops_row is not None
+    assert hasattr(tops_row, "remove_btn")
+
+    # Click remove
+    tops_row.remove_btn.click()
+
+    # Verify that the article is unequipped and the row is removed
+    assert not canvas.is_article_active(shirt_a)
+    assert window.equipped_layout.count() == 1
+
+    # Undo
+    canvas.undo_stack.undo()
+    assert canvas.is_article_active(shirt_a)
+    assert window.equipped_layout.count() == 2
+
+    canvas.undo_stack.clear()

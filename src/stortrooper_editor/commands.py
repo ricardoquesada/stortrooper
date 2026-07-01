@@ -212,3 +212,25 @@ class ChangeCharacterDataCommand(QUndoCommand):
             if hasattr(self.canvas, "character_data"):
                 self.canvas.character_data = None
         self.main_window.synchronize_ui_with_canvas(self.canvas)
+
+
+class ToggleLayerVisibilityCommand(QUndoCommand):
+    def __init__(self, main_window, canvas, layer_name, visible):
+        super().__init__(f"Show {layer_name}" if visible else f"Hide {layer_name}")
+        self.main_window = main_window
+        self.canvas = canvas
+        self.layer_name = layer_name
+        self.new_visible = visible
+
+        if layer_name in canvas.pixmap_items:
+            self.old_visible = canvas.pixmap_items[layer_name].isVisible()
+        else:
+            self.old_visible = True
+
+    def redo(self):
+        self.canvas.set_layer_visible(self.layer_name, self.new_visible)
+        self.main_window.update_equipped_items_list()
+
+    def undo(self):
+        self.canvas.set_layer_visible(self.layer_name, self.old_visible)
+        self.main_window.update_equipped_items_list()

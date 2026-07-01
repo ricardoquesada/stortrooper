@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsScene,
     QGraphicsView,
+    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -42,6 +43,7 @@ from .commands import (
     EquipArticleCommand,
     RandomizeCommand,
     TintArticleCommand,
+    ToggleLayerVisibilityCommand,
     UnequipArticleCommand,
 )
 from .model import Article, CharacterData
@@ -123,6 +125,15 @@ class CanvasWidget(QGraphicsView):
         current_article = self.active_articles.get(article.layer_name)
         return current_article is not None and current_article.id == article.id
 
+    def set_layer_visible(self, layer_name: str, visible: bool):
+        if layer_name in self.pixmap_items:
+            self.pixmap_items[layer_name].setVisible(visible)
+
+    def is_layer_visible(self, layer_name: str) -> bool:
+        if layer_name in self.pixmap_items:
+            return self.pixmap_items[layer_name].isVisible()
+        return True
+
     def set_article_tint(self, article: Article, color_str: str):
         if not article or article.layer_name not in self.pixmap_items:
             return
@@ -160,6 +171,86 @@ class CanvasWidget(QGraphicsView):
         painter.end()
 
         image.save(file_path)
+
+
+class EquippedItemRowWidget(QWidget):
+    def __init__(self, main_window, canvas, article, parent=None):
+        super().__init__(parent)
+        self.main_window = main_window
+        self.canvas = canvas
+        self.article = article
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setSpacing(5)
+
+        # 1. Visibility Checkbox/Button
+        self.visible_btn = QToolButton()
+        self.visible_btn.setText("👁")
+        self.visible_btn.setCheckable(True)
+
+        is_visible = canvas.is_layer_visible(article.layer_name)
+        self.visible_btn.setChecked(is_visible)
+        self.update_visible_style(is_visible)
+
+        self.visible_btn.clicked.connect(self.on_visible_clicked)
+        layout.addWidget(self.visible_btn)
+
+        # 2. Article Label
+        display_text = f"{article.category.title()}: {article.image_name}"
+        label = QLabel(display_text)
+        layout.addWidget(label, 1)
+
+        # 3. Tint Button
+        self.tint_btn = QToolButton()
+        self.tint_btn.setText("🎨")
+        self.tint_btn.setToolTip("Tint Item")
+        self.tint_btn.clicked.connect(self.on_tint_clicked)
+        if article.tint:
+            self.tint_btn.setStyleSheet(
+                f"background-color: {article.tint}; border: 1px solid gray;"
+            )
+        layout.addWidget(self.tint_btn)
+
+        # 4. Remove Button
+        if article.category != "body":
+            self.remove_btn = QToolButton()
+            self.remove_btn.setText("❌")
+            self.remove_btn.setToolTip("Remove Item")
+            self.remove_btn.clicked.connect(self.on_remove_clicked)
+            layout.addWidget(self.remove_btn)
+
+    def update_visible_style(self, is_visible):
+        if is_visible:
+            self.visible_btn.setStyleSheet("color: black; font-weight: bold;")
+        else:
+            self.visible_btn.setStyleSheet(
+                "color: lightgray; text-decoration: line-through;"
+            )
+
+    def on_visible_clicked(self, checked):
+        visible = self.visible_btn.isChecked()
+        self.update_visible_style(visible)
+        command = ToggleLayerVisibilityCommand(
+            self.main_window, self.canvas, self.article.layer_name, visible
+        )
+        self.canvas.undo_stack.push(command)
+
+    def on_tint_clicked(self):
+        color = QColorDialog.getColor(
+            Qt.white,
+            self.main_window,
+            f"Select Tint Color for {self.article.image_name}",
+        )
+        if color.isValid():
+            command = TintArticleCommand(self.canvas, self.article, color.name())
+            self.canvas.undo_stack.push(command)
+            self.main_window.update_equipped_items_list()
+            self.main_window.update_asset_list_visuals()
+
+    def on_remove_clicked(self):
+        command = UnequipArticleCommand(self.canvas, self.article)
+        self.canvas.undo_stack.push(command)
 
 
 class CollapsibleBox(QWidget):
@@ -258,8 +349,14 @@ class MainWindow(QMainWindow):
         self.tab_widget.tabCloseRequested.connect(self.on_tab_close_requested)
         self.setCentralWidget(self.tab_widget)
 
-        # Dock Widget for Tools
-        self.create_tools_dock()
+        # Dock Widget for Asset Catalog
+        self.create_asset_catalog_dock()
+
+        # Dock Widget for Equipped Items
+        self.create_equipped_dock()
+
+        # Place them side-by-side
+        self.splitDockWidget(self.equipped_dock, self.asset_catalog_dock, Qt.Horizontal)
 
         # Menu Bar
         self.create_menu_bar()
@@ -321,12 +418,18 @@ class MainWindow(QMainWindow):
 
     def restore_default_layout(self):
         self.resize(1200, 800)
-        # Assuming 'Tools' dock is the only one for now
-        dock = self.findChild(QDockWidget, "ToolsDock")
-        if dock:
-            self.addDockWidget(Qt.RightDockWidgetArea, dock)
-            dock.setFloating(False)
-            dock.show()
+
+        equipped_dock = self.findChild(QDockWidget, "EquippedDock")
+        catalog_dock = self.findChild(QDockWidget, "AssetCatalogDock")
+
+        if equipped_dock and catalog_dock:
+            self.addDockWidget(Qt.RightDockWidgetArea, equipped_dock)
+            self.addDockWidget(Qt.RightDockWidgetArea, catalog_dock)
+            self.splitDockWidget(equipped_dock, catalog_dock, Qt.Horizontal)
+            equipped_dock.setFloating(False)
+            catalog_dock.setFloating(False)
+            equipped_dock.show()
+            catalog_dock.show()
 
         if hasattr(self, "main_toolbar") and self.main_toolbar:
             logging.info("Restoring toolbar visibility and position")
@@ -335,9 +438,9 @@ class MainWindow(QMainWindow):
             if not self.main_toolbar.toggleViewAction().isChecked():
                 self.main_toolbar.toggleViewAction().trigger()
 
-    def create_tools_dock(self):
-        dock = QDockWidget("Tools", self)
-        dock.setObjectName("ToolsDock")
+    def create_asset_catalog_dock(self):
+        dock = QDockWidget("Asset Catalog", self)
+        dock.setObjectName("AssetCatalogDock")
         dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
         panel = QWidget()
@@ -368,6 +471,27 @@ class MainWindow(QMainWindow):
 
         dock.setWidget(panel)
         self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        self.asset_catalog_dock = dock
+
+    def create_equipped_dock(self):
+        dock = QDockWidget("Equipped Items", self)
+        dock.setObjectName("EquippedDock")
+        dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+
+        self.equipped_scroll_area = QScrollArea()
+        self.equipped_scroll_area.setWidgetResizable(True)
+        self.equipped_container = QWidget()
+        self.equipped_layout = QVBoxLayout(self.equipped_container)
+        self.equipped_layout.setAlignment(Qt.AlignTop)
+        self.equipped_scroll_area.setWidget(self.equipped_container)
+        layout.addWidget(self.equipped_scroll_area)
+
+        dock.setWidget(panel)
+        self.addDockWidget(Qt.RightDockWidgetArea, dock)
+        self.equipped_dock = dock
 
     def create_menu_bar(self):
         menubar = self.menuBar()
@@ -597,6 +721,7 @@ class MainWindow(QMainWindow):
         canvas = CanvasWidget()
         canvas.set_zoom(4.0)
         canvas.undo_stack.indexChanged.connect(self.update_asset_list_visuals)
+        canvas.undo_stack.indexChanged.connect(self.update_equipped_items_list)
         canvas.undo_stack.cleanChanged.connect(
             lambda clean, c=canvas: self.update_tab_title(c)
         )
@@ -611,6 +736,7 @@ class MainWindow(QMainWindow):
         # Clear the undo stack so the initial setup is not undoable
         canvas.undo_stack.clear()
         self.update_tab_title(canvas)
+        self.update_equipped_items_list()
 
     def on_tab_close_requested(self, index):
         if index >= 0:
@@ -635,6 +761,7 @@ class MainWindow(QMainWindow):
         if index < 0:
             # Could clear UI or disable properties
             self.clear_asset_selectors()
+            self.clear_equipped_items_list()
             return
 
         canvas = self.tab_widget.widget(index)
@@ -668,6 +795,7 @@ class MainWindow(QMainWindow):
         self.articles_combo.blockSignals(False)
 
         self.refresh_categories_and_assets(canvas)
+        self.update_equipped_items_list()
 
     def synchronize_ui_with_canvas(self, canvas):
         idx = self.tab_widget.indexOf(canvas)
@@ -682,6 +810,33 @@ class MainWindow(QMainWindow):
             if widget:
                 widget.deleteLater()
         self.category_selectors = []
+
+    def clear_equipped_items_list(self):
+        while self.equipped_layout.count():
+            item = self.equipped_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def update_equipped_items_list(self):
+        self.clear_equipped_items_list()
+
+        canvas = self.get_current_canvas()
+        if (
+            not canvas
+            or not hasattr(canvas, "character_data")
+            or not canvas.character_data
+        ):
+            return
+
+        active_articles = list(canvas.active_articles.values())
+        active_articles.sort(
+            key=lambda art: canvas.character_data.get_article_z_index(art), reverse=True
+        )
+
+        for article in active_articles:
+            row_widget = EquippedItemRowWidget(self, canvas, article)
+            self.equipped_layout.addWidget(row_widget)
 
     def refresh_categories_and_assets(self, canvas):
         self.clear_asset_selectors()

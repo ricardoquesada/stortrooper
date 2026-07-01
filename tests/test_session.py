@@ -74,9 +74,15 @@ def test_session_persistence(qtbot, clean_settings, tmp_path):
         assert "window_geometry" in set_args, "Should save window_geometry on close"
         assert "window_state" in set_args, "Should save window_state on close"
 
-        # Also check that ToolsDock has object name
-        dock = window.findChild(object, "ToolsDock")
-        assert dock is not None, "Tools dock should have objectName 'ToolsDock'"
+        # Also check that EquippedDock and AssetCatalogDock have object names
+        eq_dock = window.findChild(object, "EquippedDock")
+        cat_dock = window.findChild(object, "AssetCatalogDock")
+        assert (
+            eq_dock is not None
+        ), "Equipped dock should have objectName 'EquippedDock'"
+        assert (
+            cat_dock is not None
+        ), "Asset Catalog dock should have objectName 'AssetCatalogDock'"
 
 
 def test_restore_default_layout(qtbot, clean_settings, tmp_path):
@@ -114,9 +120,12 @@ def test_restore_default_layout(qtbot, clean_settings, tmp_path):
         assert not toolbar.isVisible()
 
         # 2. Move Dock or Hide it
-        dock = window.findChild(object, "ToolsDock")
-        dock.setVisible(False)
-        assert not dock.isVisible()
+        eq_dock = window.findChild(object, "EquippedDock")
+        cat_dock = window.findChild(object, "AssetCatalogDock")
+        eq_dock.setVisible(False)
+        cat_dock.setVisible(False)
+        assert not eq_dock.isVisible()
+        assert not cat_dock.isVisible()
 
         # 3. Restore Defaults
         window.restore_default_layout()
@@ -124,7 +133,10 @@ def test_restore_default_layout(qtbot, clean_settings, tmp_path):
         # 4. Verify
         # Wait for window to be processed if needed, but synchronous call should handle layout
         assert toolbar.isVisible(), "Toolbar should be visible after restore"
-        assert dock.isVisible(), "Dock should be visible after restore"
+        assert eq_dock.isVisible(), "Equipped dock should be visible after restore"
+        assert (
+            cat_dock.isVisible()
+        ), "Asset Catalog dock should be visible after restore"
         # Check size if possible, though window manager might affect it
         assert window.size().width() == 1200
         assert window.size().height() == 800
