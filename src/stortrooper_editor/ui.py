@@ -1249,5 +1249,7 @@ class MainWindow(QMainWindow):
             "<h3>StorTrooper Character Editor</h3>"
             "<p>Version 1.0.0</p>"
             "<p>A retro pixel art character composer and customization tool.</p>"
+            "<p>Original art taken from <a href='https://web.archive.org/web/20061126002112/http://www.stortroopers.com/index.html'>stortroopers.com</a>.</p>"
+            "<p>Licensed under <a href='http://creativecommons.org/licenses/by-nc-sa/2.0/'>CC BY-NC-SA 2.0</a>.</p>"
             "<p>Copyright © 2025-2026 Ricardo Quesada. All rights reserved.</p>",
         )

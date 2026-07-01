@@ -116,7 +116,10 @@ def test_about_dialog(qtbot, mocker):
         about_action.trigger()
 
         mock_about.assert_called_once()
-        assert "StorTrooper Character Editor" in mock_about.call_args[0][2]
+        about_text = mock_about.call_args[0][2]
+        assert "StorTrooper Character Editor" in about_text
+        assert "CC BY-NC-SA 2.0" in about_text
+        assert "stortroopers.com" in about_text
 
         # Clear undo stacks to prevent close warning dialogs
         canvas = window.get_current_canvas()
