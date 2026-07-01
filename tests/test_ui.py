@@ -88,3 +88,37 @@ def test_canvas_remove_article(qtbot, mocker):
         assert not canvas.is_article_active(article)
 
     os.remove(tmp.name)
+
+
+def test_about_dialog(qtbot, mocker):
+    """Test that triggering the About action shows the About dialog."""
+    # Use a mock/dummy resource path
+    import tempfile
+
+    from PySide6.QtGui import QAction
+
+    from stortrooper_editor.ui import MainWindow
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        window = MainWindow(tmp_dir)
+        qtbot.addWidget(window)
+        window.show()
+
+        mock_about = mocker.patch("PySide6.QtWidgets.QMessageBox.about")
+
+        about_action = None
+        for action in window.findChildren(QAction):
+            if "About" in action.text():
+                about_action = action
+                break
+
+        assert about_action is not None
+        about_action.trigger()
+
+        mock_about.assert_called_once()
+        assert "StorTrooper Character Editor" in mock_about.call_args[0][2]
+
+        # Clear undo stacks to prevent close warning dialogs
+        canvas = window.get_current_canvas()
+        if canvas:
+            canvas.undo_stack.clear()

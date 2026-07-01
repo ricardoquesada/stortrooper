@@ -663,6 +663,11 @@ class MainWindow(QMainWindow):
         restore_layout_action = window_menu.addAction("Restore Default Layout")
         restore_layout_action.triggered.connect(self.restore_default_layout)
 
+        # Help Menu
+        help_menu = menubar.addMenu("Help")
+        about_action = help_menu.addAction("About StorTrooper...")
+        about_action.triggered.connect(self.show_about_dialog)
+
     def update_recent_menu(self):
         self.recent_menu.clear()
         recent_files = self.settings.value("recent_files", [])
@@ -1236,3 +1241,13 @@ class MainWindow(QMainWindow):
 
         command = TintArticleCommand(canvas, target_article, None)
         canvas.undo_stack.push(command)
+
+    def show_about_dialog(self):
+        QMessageBox.about(
+            self,
+            "About StorTrooper",
+            "<h3>StorTrooper Character Editor</h3>"
+            "<p>Version 1.0.0</p>"
+            "<p>A retro pixel art character composer and customization tool.</p>"
+            "<p>Copyright © 2025-2026 Ricardo Quesada. All rights reserved.</p>",
+        )
