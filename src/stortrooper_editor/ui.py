@@ -674,7 +674,18 @@ class MainWindow(QMainWindow):
         if not isinstance(recent_files, list):
             recent_files = []
 
-        for file_path in recent_files:
+        normalized_files = []
+        for path in recent_files:
+            if not isinstance(path, str) or not path:
+                continue
+            norm = os.path.abspath(os.path.normpath(path))
+            if norm not in normalized_files:
+                normalized_files.append(norm)
+
+        if normalized_files != recent_files:
+            self.settings.setValue("recent_files", normalized_files)
+
+        for file_path in normalized_files:
             action = QAction(os.path.basename(file_path), self)
             action.setData(file_path)
             action.triggered.connect(
@@ -682,27 +693,55 @@ class MainWindow(QMainWindow):
             )
             self.recent_menu.addAction(action)
 
-        if not recent_files:
+        if not normalized_files:
             self.recent_menu.setDisabled(True)
         else:
             self.recent_menu.setEnabled(True)
 
     def add_recent_file(self, file_path):
+        if not file_path:
+            return
+        file_path = os.path.abspath(os.path.normpath(file_path))
         recent_files = self.settings.value("recent_files", [])
         if not isinstance(recent_files, list):
             recent_files = []
 
-        # Remove if exists to move to top
-        if file_path in recent_files:
-            recent_files.remove(file_path)
+        normalized_files = []
+        for path in recent_files:
+            if not isinstance(path, str) or not path:
+                continue
+            norm = os.path.abspath(os.path.normpath(path))
+            if norm not in normalized_files:
+                normalized_files.append(norm)
 
-        recent_files.insert(0, file_path)
+        if file_path in normalized_files:
+            normalized_files.remove(file_path)
 
-        # Limit to 10
-        if len(recent_files) > 10:
-            recent_files = recent_files[:10]
+        normalized_files.insert(0, file_path)
 
-        self.settings.setValue("recent_files", recent_files)
+        if len(normalized_files) > 10:
+            normalized_files = normalized_files[:10]
+
+        self.settings.setValue("recent_files", normalized_files)
+        self.update_recent_menu()
+
+    def remove_recent_file(self, file_path):
+        if not file_path:
+            return
+        file_path = os.path.abspath(os.path.normpath(file_path))
+        recent_files = self.settings.value("recent_files", [])
+        if not isinstance(recent_files, list):
+            recent_files = []
+
+        normalized_files = []
+        for path in recent_files:
+            if not isinstance(path, str) or not path:
+                continue
+            norm = os.path.abspath(os.path.normpath(path))
+            if norm != file_path and norm not in normalized_files:
+                normalized_files.append(norm)
+
+        self.settings.setValue("recent_files", normalized_files)
         self.update_recent_menu()
 
     def populate_characters(self):
@@ -1128,6 +1167,7 @@ class MainWindow(QMainWindow):
             # Let's verify character exists
             idx = self.char_combo.findText(char_name)
             if idx == -1:
+                self.remove_recent_file(file_path)
                 QMessageBox.critical(
                     self, "Error", f"Character '{char_name}' not found."
                 )
@@ -1176,7 +1216,8 @@ class MainWindow(QMainWindow):
             return True
 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save project:\n{e}")
+            QMessageBox.critical(self, "Error", f"Failed to open project:\n{e}")
+            self.remove_recent_file(file_path)
             return False
 
     def randomize_character(self):
