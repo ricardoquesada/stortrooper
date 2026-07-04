@@ -71,6 +71,7 @@ def test_random_outfit(res_path):
 def test_guali_character_load():
     """Test loading the real guali character data."""
     import os
+
     res_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "res")
     char_data = CharacterData("guali", res_path)
     char_data.load()
@@ -82,3 +83,47 @@ def test_guali_character_load():
     assert guali_head_02.category == "hats"
     assert guali_head_02.layer_name == "hats"
 
+
+def test_sport_character_load():
+    """Test loading the real sport character data with the new futbol articles."""
+    import os
+
+    res_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "res")
+    char_data = CharacterData("sport", res_path)
+    char_data.load()
+
+    # Verify futbol tee is loaded and has correct properties/offsets
+    futbol_tee = char_data.get_article_by_id("50247")
+    assert futbol_tee is not None
+    assert futbol_tee.image_name == "boy_tee_futbol.png"
+    assert futbol_tee.category == "tops"
+    assert futbol_tee.layer_name == "tops"
+    assert futbol_tee.x == 29
+    assert futbol_tee.y == 69
+
+    # Verify futbol trousers are loaded and has correct properties/offsets
+    futbol_trousers = char_data.get_article_by_id("50248")
+    assert futbol_trousers is not None
+    assert futbol_trousers.image_name == "boy_trousers_futbol.png"
+    assert futbol_trousers.category == "bottoms"
+    assert futbol_trousers.layer_name == "bottoms"
+    assert futbol_trousers.x == 40
+    assert futbol_trousers.y == 100
+
+    # Verify Diego hair is loaded and has correct properties/offsets
+    diego_hair = char_data.get_article_by_id("50249")
+    assert diego_hair is not None
+    assert diego_hair.image_name == "boy_hair_diego.png"
+    assert diego_hair.category == "hair"
+    assert diego_hair.layer_name == "hair"
+    assert diego_hair.x == 24
+    assert diego_hair.y == 12
+
+    # Verify Diego shoes are loaded and has correct properties/offsets
+    diego_shoes = char_data.get_article_by_id("50250")
+    assert diego_shoes is not None
+    assert diego_shoes.image_name == "boy_shoes_diego.png"
+    assert diego_shoes.category == "shoes"
+    assert diego_shoes.layer_name == "shoes"
+    assert diego_shoes.x == 36
+    assert diego_shoes.y == 117

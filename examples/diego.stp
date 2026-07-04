@@ -1,0 +1,12 @@
+{
+    "character_name": "sport",
+    "articles_file": "articles.txt",
+    "active_articles": [
+        "50247",
+        "10",
+        "50248",
+        "50249",
+        "50250"
+    ],
+    "article_tints": {}
+}
